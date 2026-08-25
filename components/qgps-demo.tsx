@@ -1,0 +1,316 @@
+"use client";
+
+import {
+  AlertTriangle,
+  Clock3,
+  Crosshair,
+  Database,
+  LocateFixed,
+  RefreshCw,
+  Route,
+  Satellite,
+  Signal,
+  WifiOff,
+} from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { QgpsMap } from "@/components/qgps-map";
+import { StatusBadge } from "@/components/status-badge";
+import {
+  formatAge,
+  formatCoordinate,
+  isQgpsScenario,
+  type QgpsFreshness,
+  type QgpsScenario,
+  type QgpsSnapshot,
+} from "@/lib/qgps";
+
+type DemoScenario = QgpsScenario | "error";
+
+const scenarios: ReadonlyArray<{
+  id: DemoScenario;
+  label: string;
+  description: string;
+}> = [
+  { id: "current", label: "Current fixture", description: "Recent simulated position and track" },
+  { id: "stale", label: "Stale", description: "Last fix outside freshness threshold" },
+  { id: "offline", label: "Offline", description: "Connection lost with last-known data" },
+  { id: "empty", label: "Empty", description: "Connected source with no position yet" },
+  { id: "error", label: "Error", description: "Backend request fails safely" },
+  { id: "unavailable", label: "Unavailable", description: "No upstream source configured" },
+];
+
+const freshnessTone: Record<QgpsFreshness, "information" | "warning" | "critical" | "unknown"> = {
+  current: "information",
+  stale: "warning",
+  offline: "unknown",
+  unavailable: "critical",
+  unknown: "unknown",
+};
+
+const freshnessLabel: Record<QgpsFreshness, string> = {
+  current: "Current",
+  stale: "Stale",
+  offline: "Offline",
+  unavailable: "Unavailable",
+  unknown: "Unknown",
+};
+
+function scenarioFromSearch(value: string | null): DemoScenario {
+  if (value === "error") return value;
+  return isQgpsScenario(value) ? value : "current";
+}
+
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(new Date(value));
+}
+
+export function QgpsDemo() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const scenario = scenarioFromSearch(searchParams.get("state"));
+  const [snapshot, setSnapshot] = useState<QgpsSnapshot | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`/api/qgps/snapshot?scenario=${encodeURIComponent(scenario)}`, {
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+    })
+      .then(async (response) => {
+        const body = (await response.json()) as QgpsSnapshot | { error?: string };
+        if (!response.ok) {
+          throw new Error("error" in body && body.error ? body.error : "QGPS request failed.");
+        }
+        setError(null);
+        setSnapshot(body as QgpsSnapshot);
+      })
+      .catch((requestError: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(requestError instanceof Error ? requestError.message : "QGPS request failed.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBusy(false);
+      });
+
+    return () => controller.abort();
+  }, [scenario]);
+
+  const recentTrack = useMemo(() => snapshot?.track.slice(-5).reverse() ?? [], [snapshot]);
+
+  function selectScenario(nextScenario: DemoScenario) {
+    setBusy(true);
+    setError(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("state", nextScenario);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  return (
+    <div className="demo-experience">
+      <section className="demo-intro shell">
+        <div>
+          <p className="eyebrow">QGPS state lab</p>
+          <h1>Read the position.<br /><em>Judge the signal.</em></h1>
+        </div>
+        <div className="demo-intro__copy">
+          <StatusBadge tone="simulated">Simulated only</StatusBadge>
+          <p>
+            This map receives normalized fixtures through the Catalyst backend route. It does not
+            connect to a QGPS source and must not be used for field decisions.
+          </p>
+        </div>
+      </section>
+
+      <section className="scenario-section shell" aria-labelledby="scenario-title">
+        <div className="scenario-section__heading">
+          <p id="scenario-title" className="data-label">Select a data condition</p>
+          <p>URL state updates so each condition can be shared and revisited.</p>
+        </div>
+        <div className="scenario-switcher" role="group" aria-labelledby="scenario-title">
+          {scenarios.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={scenario === item.id}
+              onClick={() => selectScenario(item.id)}
+            >
+              <span>{item.label}</span>
+              <small>{item.description}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="operations-console shell" aria-labelledby="console-title">
+        <header className="operations-console__header">
+          <div>
+            <span className="data-label">Expedition</span>
+            <h2 id="console-title">{snapshot?.expedition.name ?? "Karakoram Pilot"}</h2>
+          </div>
+          <div className="operations-console__statuses" aria-live="polite">
+            {snapshot?.mode === "live" ? (
+              <StatusBadge tone="information">Live</StatusBadge>
+            ) : (
+              <StatusBadge tone="simulated">Simulated</StatusBadge>
+            )}
+            {error ? (
+              <StatusBadge tone="critical">Error</StatusBadge>
+            ) : snapshot ? (
+              <StatusBadge tone={freshnessTone[snapshot.freshness]}>
+                {freshnessLabel[snapshot.freshness]}
+              </StatusBadge>
+            ) : (
+              <StatusBadge tone="unknown">Loading</StatusBadge>
+            )}
+          </div>
+        </header>
+
+        {error ? (
+          <div className="console-alert" role="alert">
+            <AlertTriangle aria-hidden="true" />
+            <div>
+              <strong>Position refresh failed</strong>
+              <p>{error} {snapshot ? "The previous fixture remains visible below." : "No position is available."}</p>
+            </div>
+            <button className="button button--secondary" type="button" onClick={() => selectScenario("current")}>
+              <RefreshCw aria-hidden="true" /> Load current fixture
+            </button>
+          </div>
+        ) : null}
+
+        <div className="operations-console__workspace" aria-busy={busy}>
+          <QgpsMap snapshot={snapshot} busy={busy} />
+
+          <aside className="position-inspector" aria-label="QGPS position inspector">
+            <div className="position-inspector__title">
+              <div>
+                <span className="data-label">Team</span>
+                <h3>{snapshot?.expedition.team ?? "Rope Team A"}</h3>
+              </div>
+              <Crosshair aria-hidden="true" />
+            </div>
+
+            {snapshot?.position ? (
+              <>
+                <div className="latest-fix">
+                  <span className="data-label">Latest position received</span>
+                  <strong>{formatAge(snapshot.position.timestamp)}</strong>
+                  <time dateTime={snapshot.position.timestamp}>{formatTimestamp(snapshot.position.timestamp)}</time>
+                </div>
+
+                <dl className="position-data">
+                  <div>
+                    <dt><LocateFixed aria-hidden="true" /> Latitude</dt>
+                    <dd>{formatCoordinate(snapshot.position.latitude, "N", "S")}</dd>
+                  </div>
+                  <div>
+                    <dt><LocateFixed aria-hidden="true" /> Longitude</dt>
+                    <dd>{formatCoordinate(snapshot.position.longitude, "E", "W")}</dd>
+                  </div>
+                  <div>
+                    <dt><Route aria-hidden="true" /> Altitude</dt>
+                    <dd>{snapshot.position.altitudeM.toLocaleString()} m</dd>
+                  </div>
+                  <div>
+                    <dt><Crosshair aria-hidden="true" /> Accuracy</dt>
+                    <dd>{snapshot.position.accuracyM === null ? "Not supplied" : `±${snapshot.position.accuracyM} m`}</dd>
+                  </div>
+                  <div>
+                    <dt><Satellite aria-hidden="true" /> Fix / satellites</dt>
+                    <dd>{snapshot.position.fixType} / {snapshot.position.satellites ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt><Signal aria-hidden="true" /> HDOP</dt>
+                    <dd>{snapshot.position.hdop ?? "Not supplied"}</dd>
+                  </div>
+                </dl>
+              </>
+            ) : (
+              <div className="position-empty" role="status">
+                {snapshot?.freshness === "unavailable" ? <WifiOff aria-hidden="true" /> : <Satellite aria-hidden="true" />}
+                <strong>{snapshot?.freshness === "unavailable" ? "Position unavailable" : "No position received"}</strong>
+                <p>{snapshot?.notice ?? "Waiting for the Catalyst backend fixture…"}</p>
+              </div>
+            )}
+
+            <div className="source-block">
+              <Database aria-hidden="true" />
+              <div>
+                <span className="data-label">Source</span>
+                <strong>{snapshot?.source.name ?? "Catalyst QGPS fixture"}</strong>
+                <span>Via {snapshot?.source.adapter ?? "Catalyst backend API"}</span>
+              </div>
+            </div>
+          </aside>
+
+          {busy ? (
+            <div className="console-loading" role="status" aria-live="polite">
+              <span className="page-loading__signal" aria-hidden="true" />
+              Loading selected state…
+            </div>
+          ) : null}
+        </div>
+
+        <footer className="operations-console__footer">
+          <span>Schema: {snapshot?.schemaVersion ?? "catalyst.qgps.snapshot.v1"}</span>
+          <span>Map attribution: MapLibre GL JS · Catalyst fixture geometry</span>
+          <span>No production tile source configured</span>
+        </footer>
+      </section>
+
+      <section className="track-section shell">
+        <div className="track-section__intro">
+          <p className="eyebrow">Recent track</p>
+          <h2>Every point keeps its own time.</h2>
+          <p>
+            Track order and timestamps are preserved rather than inferred from the time the browser
+            received the response.
+          </p>
+        </div>
+        <div className="track-list" role="list" aria-label="Five most recent simulated track points">
+          {recentTrack.length ? (
+            recentTrack.map((point, index) => (
+              <div key={`${point.timestamp}-${point.latitude}`} role="listitem">
+                <span>{String(recentTrack.length - index).padStart(2, "0")}</span>
+                <dl>
+                  <div><dt>Latitude</dt><dd>{formatCoordinate(point.latitude, "N", "S")}</dd></div>
+                  <div><dt>Longitude</dt><dd>{formatCoordinate(point.longitude, "E", "W")}</dd></div>
+                  <div><dt>Altitude</dt><dd>{point.altitudeM.toLocaleString()} m</dd></div>
+                  <div><dt>Recorded</dt><dd><time dateTime={point.timestamp}>{formatAge(point.timestamp)}</time></dd></div>
+                </dl>
+              </div>
+            ))
+          ) : (
+            <div className="track-list__empty" role="status">
+              <Clock3 aria-hidden="true" />
+              <div>
+                <strong>No recent track points</strong>
+                <p>The selected data condition does not provide a track.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <aside className="demo-disclosure shell">
+        <AlertTriangle aria-hidden="true" />
+        <div>
+          <p className="eyebrow">Integration limitation</p>
+          <h2>Simulation proves interface behavior—not upstream compatibility.</h2>
+          <p>
+            Live completion requires the exact QGPS project, license, protocol, sample data, backend
+            implementation, and a verified end-to-end test. Those inputs are currently unavailable.
+          </p>
+        </div>
+      </aside>
+    </div>
+  );
+}
