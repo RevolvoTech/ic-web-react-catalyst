@@ -6,6 +6,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import "@/styles/marketing.css";
 import "@/styles/demo.css";
+import { MotionOrchestrator } from "@/components/motion-orchestrator";
+import { MotionProvider } from "@/components/motion-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
@@ -42,12 +44,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       data-scroll-behavior="smooth"
     >
       <body>
-        <a className="skip-link" href="#main-content">
-          Skip to main content
-        </a>
-        <SiteHeader />
-        <main id="main-content">{children}</main>
-        <SiteFooter />
+        <MotionProvider>
+          <a className="skip-link" href="#main-content">
+            Skip to main content
+          </a>
+          <SiteHeader />
+          <main id="main-content">{children}</main>
+          <SiteFooter />
+          <MotionOrchestrator />
+        </MotionProvider>
       </body>
     </html>
   );

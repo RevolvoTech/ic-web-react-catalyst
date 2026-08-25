@@ -231,6 +231,7 @@ export default function HomePage() {
 
       <section className="closing-image-cta">
         <Image
+          className="closing-image-cta__image"
           src="/images/catalyst-hero.png"
           alt=""
           fill

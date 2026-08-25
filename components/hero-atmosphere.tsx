@@ -1,9 +1,6 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-const MOTION_KEY = "catalyst-motion-paused";
 
 interface Particle {
   x: number;
@@ -17,15 +14,12 @@ interface Particle {
 export function HeroAtmosphere() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number | null>(null);
-  const [paused, setPaused] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(true);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const syncPreference = () => {
       setReducedMotion(media.matches);
-      const saved = window.localStorage.getItem(MOTION_KEY);
-      setPaused(media.matches || saved === "true");
     };
 
     syncPreference();
@@ -35,7 +29,7 @@ export function HeroAtmosphere() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || paused || reducedMotion) return;
+    if (!canvas || reducedMotion) return;
 
     const context = canvas.getContext("2d");
     if (!context) return;
@@ -90,7 +84,11 @@ export function HeroAtmosphere() {
         drawingContext.fill();
       }
 
-      if (visible && documentVisible) frameRef.current = requestAnimationFrame(draw);
+      if (visible && documentVisible) {
+        frameRef.current = requestAnimationFrame(draw);
+      } else {
+        frameRef.current = null;
+      }
     }
 
     const observer = new IntersectionObserver(([entry]) => {
@@ -126,30 +124,11 @@ export function HeroAtmosphere() {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     };
-  }, [paused, reducedMotion]);
-
-  function toggleMotion() {
-    const nextPaused = !paused;
-    setPaused(nextPaused);
-    window.localStorage.setItem(MOTION_KEY, String(nextPaused));
-  }
+  }, [reducedMotion]);
 
   return (
-    <>
-      <div className="hero-atmosphere">
-        <canvas ref={canvasRef} className="hero-atmosphere__canvas" aria-hidden="true" />
-      </div>
-      {!reducedMotion ? (
-        <button
-          className="motion-control"
-          type="button"
-          aria-pressed={paused}
-          onClick={toggleMotion}
-        >
-          {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
-          <span>{paused ? "Play motion" : "Pause motion"}</span>
-        </button>
-      ) : null}
-    </>
+    <div className="hero-atmosphere">
+      <canvas ref={canvasRef} className="hero-atmosphere__canvas" aria-hidden="true" />
+    </div>
   );
 }

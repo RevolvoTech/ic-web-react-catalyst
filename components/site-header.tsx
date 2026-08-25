@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -97,33 +98,58 @@ export function SiteHeader() {
         </button>
       </div>
 
-      {open ? (
-        <div className="mobile-drawer" id="mobile-menu" ref={drawerRef}>
-          <div className="mobile-drawer__backdrop" aria-hidden="true" onClick={() => setOpen(false)} />
-          <nav className="mobile-drawer__panel" aria-label="Mobile navigation">
-            <p className="eyebrow">Navigate Catalyst</p>
-            {navigation.map((item) => (
+      <AnimatePresence initial={false}>
+        {open ? (
+          <m.div
+            className="mobile-drawer"
+            id="mobile-menu"
+            ref={drawerRef}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <m.div
+              className="mobile-drawer__backdrop"
+              aria-hidden="true"
+              onClick={() => setOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            />
+            <m.nav
+              className="mobile-drawer__panel"
+              aria-label="Mobile navigation"
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <p className="eyebrow">Navigate Catalyst</p>
+              {navigation.map((item) => (
+                <Link
+                  key={item.href}
+                  className="mobile-drawer__link"
+                  href={item.href}
+                  aria-current={isCurrent(pathname, item.href) ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
               <Link
-                key={item.href}
-                className="mobile-drawer__link"
-                href={item.href}
-                aria-current={isCurrent(pathname, item.href) ? "page" : undefined}
+                className="button button--primary mobile-drawer__cta"
+                href="/demo"
+                aria-current={pathname.startsWith("/demo") ? "page" : undefined}
                 onClick={() => setOpen(false)}
               >
-                {item.label}
+                Open QGPS demo
               </Link>
-            ))}
-            <Link
-              className="button button--primary mobile-drawer__cta"
-              href="/demo"
-              aria-current={pathname.startsWith("/demo") ? "page" : undefined}
-              onClick={() => setOpen(false)}
-            >
-              Open QGPS demo
-            </Link>
-          </nav>
-        </div>
-      ) : null}
+            </m.nav>
+          </m.div>
+        ) : null}
+      </AnimatePresence>
     </header>
   );
 }

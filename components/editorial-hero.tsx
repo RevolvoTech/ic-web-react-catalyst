@@ -1,5 +1,11 @@
+"use client";
+
+import { m, useReducedMotion } from "motion/react";
 import Image from "next/image";
 import type { ReactNode } from "react";
+
+const MotionImage = m.create(Image);
+const easeEnter = [0.22, 1, 0.36, 1] as const;
 
 interface EditorialHeroProps {
   eyebrow: string;
@@ -22,9 +28,11 @@ export function EditorialHero({
   home = false,
   atmosphere,
 }: EditorialHeroProps) {
+  const reduceMotion = useReducedMotion();
+
   return (
-    <section className={home ? "editorial-hero editorial-hero--home" : "editorial-hero"}>
-      <Image
+    <m.section className={home ? "editorial-hero editorial-hero--home" : "editorial-hero"}>
+      <MotionImage
         className="editorial-hero__image"
         src={image}
         alt={imageAlt}
@@ -32,6 +40,9 @@ export function EditorialHero({
         loading="eager"
         fetchPriority="high"
         sizes="100vw"
+        initial={reduceMotion ? false : { scale: 1.012 }}
+        animate={{ scale: 1 }}
+        transition={{ duration: 1.2, ease: easeEnter }}
       />
       <div className="editorial-hero__wash" aria-hidden="true" />
       {atmosphere}
@@ -45,6 +56,6 @@ export function EditorialHero({
         <span>CAT / OPS</span>
         <span>35°44′N</span>
       </div>
-    </section>
+    </m.section>
   );
 }

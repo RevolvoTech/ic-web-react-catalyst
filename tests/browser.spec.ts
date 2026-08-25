@@ -23,7 +23,7 @@ const routes = [
   },
 ] as const;
 
-const viewportWidths = [320, 390, 768, 1024, 1440, 1920] as const;
+const viewportWidths = [280, 320, 360, 390, 412, 768, 1024, 1440, 1920, 2560, 3840] as const;
 
 function scenarioGroup(page: Page) {
   return page.getByRole("group", { name: "Select a data condition" });
@@ -322,23 +322,216 @@ test("reduced-motion preference disables the particle loop and shortens CSS moti
   expect(motionState.scrollBehavior).toBe("auto");
 });
 
-test("the motion control pauses by pointer and persists the choice", async ({ page }) => {
+test("the home atmosphere keeps running without an exposed motion control", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
 
-  const pauseButton = page.getByRole("button", { name: "Pause motion" });
-  await expect(pauseButton).toBeVisible();
-  await pauseButton.click();
-  await expect(page.getByRole("button", { name: "Play motion" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(page.getByRole("button", { name: /motion/i })).toHaveCount(0);
   await expect
-    .poll(() => page.evaluate(() => window.localStorage.getItem("catalyst-motion-paused")))
-    .toBe("true");
+    .poll(() =>
+      page.locator(".hero-atmosphere__canvas").evaluate((canvas) => ({
+        width: canvas.getAttribute("width"),
+        height: canvas.getAttribute("height"),
+      })),
+    )
+    .toEqual(
+      expect.objectContaining({
+        width: expect.stringMatching(/^\d+$/),
+        height: expect.stringMatching(/^\d+$/),
+      }),
+    );
 
-  await page.reload();
-  await expect(page.getByRole("button", { name: "Play motion" })).toBeVisible();
+  // The previous implementation stopped after 4.5 seconds. Sample beyond that
+  // cutoff to prove the decorative atmosphere is still drawing new frames.
+  await page.waitForTimeout(4_700);
+  const laterFrame = await page
+    .locator(".hero-atmosphere__canvas")
+    .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL());
+  await page.waitForTimeout(350);
+  const nextFrame = await page
+    .locator(".hero-atmosphere__canvas")
+    .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL());
+
+  expect(nextFrame).not.toBe(laterFrame);
+});
+
+test("the hero entrance does not wait in a half-faded state for hydration", async ({ page }) => {
+  await page.route("**/*", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname.endsWith(".js")) {
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/");
+  const heroHeading = page.locator(".editorial-hero h1");
+  await expect(heroHeading).toBeVisible();
+  await page.waitForTimeout(750);
+
+  const finalStyle = await heroHeading.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { opacity: Number(style.opacity), transform: style.transform };
+  });
+
+  expect(finalStyle.opacity).toBe(1);
+  expect(finalStyle.transform === "none" || finalStyle.transform.endsWith(", 0, 0)"))
+    .toBe(true);
+});
+
+test("below-hero Motion reveals replay whenever a section re-enters the viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+
+  const workflowItem = page.locator(".workflow-list li").first();
+  await workflowItem.scrollIntoViewIfNeeded();
+  await expect(workflowItem).toHaveAttribute("data-motion-reveal", "complete");
+
+  await page.locator(".closing-image-cta").scrollIntoViewIfNeeded();
+  await expect(workflowItem).toHaveAttribute("data-motion-reveal", "pending");
+
+  await workflowItem.scrollIntoViewIfNeeded();
+  await expect(workflowItem).toHaveAttribute("data-motion-reveal", "complete");
+});
+
+test("the opening chapter reveals its copy and image whenever they enter the viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+
+  const chapterHeading = page.locator(".chapter__copy h2");
+  const chapterImage = page.locator(".feature-media");
+
+  await chapterHeading.scrollIntoViewIfNeeded();
+  await expect(chapterHeading).toHaveAttribute("data-motion-reveal", "complete");
+  await expect(chapterImage).toHaveAttribute("data-motion-reveal", "complete");
+
+  await page.locator(".closing-image-cta").scrollIntoViewIfNeeded();
+  await expect(chapterHeading).toHaveAttribute("data-motion-reveal", "pending");
+  await expect(chapterImage).toHaveAttribute("data-motion-reveal", "pending");
+
+  await chapterHeading.scrollIntoViewIfNeeded();
+  await expect(chapterHeading).toHaveAttribute("data-motion-reveal", "complete");
+  await expect(chapterImage).toHaveAttribute("data-motion-reveal", "complete");
+});
+
+test("the closing image callout waits for its visible content and replays", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+
+  const content = page.locator(".closing-image-cta__content");
+  const heading = content.locator("h2");
+  const image = page.locator(".closing-image-cta__image");
+  const contentTop = await content.evaluate(
+    (element) => element.getBoundingClientRect().top + window.scrollY,
+  );
+
+  await page.evaluate((top) => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, top - window.innerHeight + 10);
+  }, contentTop);
+  await page.waitForTimeout(900);
+  await expect(heading).not.toHaveAttribute("data-motion-reveal", "complete");
+
+  await heading.scrollIntoViewIfNeeded();
+  await expect(heading).toHaveAttribute("data-motion-reveal", "complete");
+  await expect(image).toHaveAttribute("data-motion-reveal", "complete");
+
+  await page.locator(".editorial-hero").scrollIntoViewIfNeeded();
+  await expect(heading).toHaveAttribute("data-motion-reveal", "pending");
+  await expect(image).toHaveAttribute("data-motion-reveal", "pending");
+
+  await heading.scrollIntoViewIfNeeded();
+  await expect(heading).toHaveAttribute("data-motion-reveal", "complete");
+  await expect(image).toHaveAttribute("data-motion-reveal", "complete");
+});
+
+test("Platform, QGPS, and Demo sections all animate and replay on scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  const pages = [
+    {
+      path: "/platform",
+      top: ".editorial-hero",
+      replayTarget: ".scope-columns > div:last-child",
+      covered: [
+        ".environment-split > .environment-panel",
+        ".lifecycle-list > li",
+        ".platform-matrix > article",
+        ".state-stack > div",
+        ".scope-columns > div",
+      ],
+    },
+    {
+      path: "/qgps",
+      top: ".editorial-hero",
+      replayTarget: ".confirmation-list > ol > li:last-child",
+      covered: [
+        ".integration-status > div",
+        ".architecture-flow > li",
+        ".architecture-flow__arrow",
+        ".source-register__list > div",
+        ".contract-fields > div",
+        ".state-semantics__grid > article",
+        ".confirmation-list > ol > li",
+      ],
+    },
+    {
+      path: "/demo",
+      top: ".demo-intro",
+      replayTarget: ".track-list > div:last-child",
+      covered: [
+        ".scenario-switcher > button",
+        ".operations-console__header",
+        ".qgps-map",
+        ".position-inspector",
+        ".operations-console__footer > span",
+        ".track-list > div",
+        ".demo-disclosure > *",
+      ],
+    },
+  ] as const;
+
+  for (const route of pages) {
+    await page.goto(route.path);
+    if (route.path === "/demo") await waitForCurrentFixture(page);
+    await page.evaluate(() =>
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }),
+    );
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+
+    for (const selector of route.covered) {
+      const elements = page.locator(selector);
+      expect(await elements.count(), `${selector} should exist on ${route.path}`).toBeGreaterThan(0);
+      const motionTarget = elements.first();
+      await motionTarget.evaluate((element) =>
+        element.scrollIntoView({ block: "center", behavior: "instant" }),
+      );
+      await expect(motionTarget, `${selector} should animate on ${route.path}`).toHaveAttribute(
+        "data-motion-reveal",
+        "complete",
+      );
+    }
+
+    const target = page.locator(route.replayTarget);
+    await target.scrollIntoViewIfNeeded();
+    await expect(target).toHaveAttribute("data-motion-reveal", "complete");
+
+    await page.locator(route.top).scrollIntoViewIfNeeded();
+    await expect(target).toHaveAttribute("data-motion-reveal", "pending");
+
+    await target.scrollIntoViewIfNeeded();
+    await expect(target).toHaveAttribute("data-motion-reveal", "complete");
+  }
 });
 
 test.describe("document width", () => {
@@ -390,4 +583,152 @@ test.describe("document width", () => {
       }
     });
   }
+});
+
+test("wide-screen shells use the available canvas instead of leaving oversized gutters", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  for (const width of [1920, 2560, 3840] as const) {
+    await page.setViewportSize({ width, height: 1440 });
+    const shells = await page.locator(".site-header__inner, .editorial-hero__content").evaluateAll(
+      (elements) =>
+        elements.map((element) => {
+          const bounds = element.getBoundingClientRect();
+          return { left: bounds.left, right: bounds.right, width: bounds.width };
+        }),
+    );
+
+    expect(shells.length).toBeGreaterThan(0);
+    for (const shell of shells) {
+      expect(shell.width / width, `shell is too narrow at ${width}px`).toBeGreaterThanOrEqual(0.94);
+      expect(shell.left / width, `left gutter is too large at ${width}px`).toBeLessThanOrEqual(0.03);
+      expect((width - shell.right) / width, `right gutter is too large at ${width}px`).toBeLessThanOrEqual(
+        0.03,
+      );
+    }
+  }
+});
+
+test("the QGPS map overlays stay inside the map without colliding", async ({ page }) => {
+  const mapWidths = [280, 320, 360, 390, 412, 480, 768, 1024, 1440, 1920, 2560] as const;
+
+  await page.setViewportSize({ width: mapWidths[0], height: 900 });
+  await waitForCurrentFixture(page);
+  await expect(page.locator(".qgps-map .maplibregl-ctrl-group")).toBeVisible();
+
+  for (const width of mapWidths) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
+
+    const layout = await page.evaluate(() => {
+      const selectors = {
+        map: ".qgps-map",
+        canvas: ".qgps-map .maplibregl-canvas",
+        label: ".qgps-map__label",
+        legend: ".qgps-map__legend",
+        controls: ".qgps-map .maplibregl-ctrl-group",
+      } as const;
+      const boxes = Object.fromEntries(
+        Object.entries(selectors).map(([name, selector]) => {
+          const element = document.querySelector<HTMLElement>(selector);
+          const bounds = element?.getBoundingClientRect();
+          return [
+            name,
+            bounds
+              ? {
+                  top: bounds.top,
+                  right: bounds.right,
+                  bottom: bounds.bottom,
+                  left: bounds.left,
+                }
+              : null,
+          ];
+        }),
+      ) as Record<keyof typeof selectors, DOMRect | null>;
+
+      const overlaps = (first: DOMRect | null, second: DOMRect | null) =>
+        Boolean(
+          first &&
+            second &&
+            first.left < second.right &&
+            first.right > second.left &&
+            first.top < second.bottom &&
+            first.bottom > second.top,
+        );
+      const isInside = (child: DOMRect | null, parent: DOMRect | null) =>
+        Boolean(
+          child &&
+            parent &&
+            child.left >= parent.left - 1 &&
+            child.right <= parent.right + 1 &&
+            child.top >= parent.top - 1 &&
+            child.bottom <= parent.bottom + 1,
+        );
+
+      return {
+        missing: Object.entries(boxes)
+          .filter(([, bounds]) => !bounds)
+          .map(([name]) => name),
+        collisions: [
+          ["legend", "controls", overlaps(boxes.legend, boxes.controls)],
+          ["label", "controls", overlaps(boxes.label, boxes.controls)],
+        ].filter(([, , collision]) => collision),
+        outside: (["label", "legend", "controls"] as const).filter(
+          (name) => !isInside(boxes[name], boxes.map),
+        ),
+        canvasDelta:
+          boxes.canvas && boxes.map
+            ? {
+                width: Math.abs(
+                  boxes.canvas.right - boxes.canvas.left - (boxes.map.right - boxes.map.left),
+                ),
+                height: Math.abs(
+                  boxes.canvas.bottom - boxes.canvas.top - (boxes.map.bottom - boxes.map.top),
+                ),
+              }
+            : null,
+      };
+    });
+
+    expect(layout.missing, `missing map overlays at ${width}px`).toEqual([]);
+    expect(layout.collisions, `colliding map overlays at ${width}px`).toEqual([]);
+    expect(layout.outside, `map overlays outside their surface at ${width}px`).toEqual([]);
+    expect(layout.canvasDelta?.width, `map canvas width mismatch at ${width}px`).toBeLessThanOrEqual(1);
+    expect(layout.canvasDelta?.height, `map canvas height mismatch at ${width}px`).toBeLessThanOrEqual(1);
+  }
+});
+
+test("the Platform environment panels follow the responsive column breakpoint", async ({ page }) => {
+  await page.goto("/platform");
+  const panels = page.locator(".environment-panel");
+  await expect(panels).toHaveCount(2);
+
+  for (const width of [280, 320, 390, 768, 1024] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    const first = await panels.nth(0).boundingBox();
+    const second = await panels.nth(1).boundingBox();
+
+    expect(first, `first panel missing at ${width}px`).not.toBeNull();
+    expect(second, `second panel missing at ${width}px`).not.toBeNull();
+    expect(Math.abs((first?.x ?? 0) - (second?.x ?? 0)), `panels misaligned at ${width}px`).toBeLessThan(1);
+    expect(
+      second?.y ?? 0,
+      `panels did not stack at ${width}px`,
+    ).toBeGreaterThanOrEqual((first?.y ?? 0) + (first?.height ?? 0) - 1);
+  }
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const first = await panels.nth(0).boundingBox();
+  const second = await panels.nth(1).boundingBox();
+  expect(Math.abs((first?.y ?? 0) - (second?.y ?? 0)), "desktop panels should share a row").toBeLessThan(1);
+  expect(second?.x ?? 0, "desktop panels should use separate columns").toBeGreaterThanOrEqual(
+    (first?.x ?? 0) + (first?.width ?? 0) - 1,
+  );
 });

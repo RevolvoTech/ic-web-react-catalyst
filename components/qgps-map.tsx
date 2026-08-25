@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { FeatureCollection, LineString, Point } from "geojson";
@@ -45,8 +46,9 @@ const contourLines: LineFeatureCollection = {
     properties: { elevation: 4_500 + index * 80 },
     geometry: {
       type: "LineString" as const,
-      coordinates: Array.from({ length: 28 }, (__, point) => {
-        const longitude = 76.496 + point * 0.0022;
+      // Extend well beyond the route so the contour field fills ultrawide map viewports.
+      coordinates: Array.from({ length: 145 }, (__, point) => {
+        const longitude = 76.36 + point * 0.0022;
         const latitude =
           35.728 + index * 0.0034 + Math.sin(point * 0.52 + index * 0.7) * 0.0032;
         return [longitude, latitude];
@@ -106,6 +108,7 @@ function positionData(snapshot: QgpsSnapshot | null): PointFeatureCollection {
 export function QgpsMap({ snapshot, busy }: QgpsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const reduceMotion = useReducedMotion();
   const [ready, setReady] = useState(false);
   const [mapError, setMapError] = useState(false);
 
@@ -218,7 +221,7 @@ export function QgpsMap({ snapshot, busy }: QgpsMapProps) {
           setReady(true);
         };
 
-        map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
+        map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
         if (map.loaded()) markReady();
         else {
           map.once("load", markReady);
@@ -253,9 +256,16 @@ export function QgpsMap({ snapshot, busy }: QgpsMapProps) {
         [Math.min(...longitudes), Math.min(...latitudes)],
         [Math.max(...longitudes), Math.max(...latitudes)],
       ];
-      map.fitBounds(bounds, { padding: 76, maxZoom: 13.8, duration: 500 });
+      const mapWidth = map.getContainer().clientWidth;
+      const padding =
+        mapWidth < 480
+          ? { top: 156, right: 40, bottom: 96, left: 32 }
+          : mapWidth < 768
+            ? { top: 96, right: 64, bottom: 80, left: 48 }
+            : 76;
+      map.fitBounds(bounds, { padding, maxZoom: 13.8, duration: reduceMotion ? 0 : 500 });
     }
-  }, [ready, snapshot]);
+  }, [ready, reduceMotion, snapshot]);
 
   return (
     <div className="qgps-map" data-map-ready={ready || undefined}>

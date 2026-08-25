@@ -12,6 +12,7 @@ import {
   Signal,
   WifiOff,
 } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { QgpsMap } from "@/components/qgps-map";
@@ -136,15 +137,16 @@ export function QgpsDemo() {
         </div>
         <div className="scenario-switcher" role="group" aria-labelledby="scenario-title">
           {scenarios.map((item) => (
-            <button
+            <m.button
               key={item.id}
               type="button"
               aria-pressed={scenario === item.id}
               onClick={() => selectScenario(item.id)}
+              whileTap={{ scale: 0.985 }}
             >
               <span>{item.label}</span>
               <small>{item.description}</small>
-            </button>
+            </m.button>
           ))}
         </div>
       </section>
@@ -173,8 +175,17 @@ export function QgpsDemo() {
           </div>
         </header>
 
-        {error ? (
-          <div className="console-alert" role="alert">
+        <AnimatePresence initial={false}>
+          {error ? (
+            <m.div
+              key="console-error"
+              className="console-alert"
+              role="alert"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            >
             <AlertTriangle aria-hidden="true" />
             <div>
               <strong>Position refresh failed</strong>
@@ -183,8 +194,9 @@ export function QgpsDemo() {
             <button className="button button--secondary" type="button" onClick={() => selectScenario("current")}>
               <RefreshCw aria-hidden="true" /> Load current fixture
             </button>
-          </div>
-        ) : null}
+            </m.div>
+          ) : null}
+        </AnimatePresence>
 
         <div className="operations-console__workspace" aria-busy={busy}>
           <QgpsMap snapshot={snapshot} busy={busy} />
@@ -251,12 +263,23 @@ export function QgpsDemo() {
             </div>
           </aside>
 
-          {busy ? (
-            <div className="console-loading" role="status" aria-live="polite">
+          <AnimatePresence initial={false}>
+            {busy ? (
+              <m.div
+                key="console-loading"
+                className="console-loading"
+                role="status"
+                aria-live="polite"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
               <span className="page-loading__signal" aria-hidden="true" />
               Loading selected state…
-            </div>
-          ) : null}
+              </m.div>
+            ) : null}
+          </AnimatePresence>
         </div>
 
         <footer className="operations-console__footer">

@@ -211,7 +211,7 @@ Snow is a signature atmospheric layer, not a global effect. It may appear inside
 
 Implement snow as one pointer-transparent, assistive-technology-hidden canvas or similarly batched layer bounded to its section. Do not create dozens of animated DOM nodes. Clamp pixel density, pause when the section or document is not visible, and keep the particle field sparse enough that headline contrast is unchanged. The direction should feel wind-driven and irregular rather than like confetti.
 
-Because the loop lasts longer than 5 seconds, provide a discoverable Pause Motion control and persist the choice. Under `prefers-reduced-motion`, do not initialize particles, pinning, scrubbing, parallax, or card stacking; render the final content state and a still atmospheric image instead.
+The home hero's decorative snow may run continuously without an exposed control for users who allow motion. Suspend the loop whenever the hero is offscreen or the browser tab is hidden, resume it automatically when visible, and do not initialize it under `prefers-reduced-motion`. Under reduced motion, also skip pinning, scrubbing, parallax, and card stacking; render the final content state and a still atmospheric image instead.
 
 ## Content & Data Integrity
 
@@ -231,7 +231,7 @@ Reserve image and media dimensions to prevent layout shift. Use optimized respon
 
 Server-rendered dates and times must not introduce hydration mismatches; format them with locale-aware APIs and use hydration suppression only when the mismatch is intentional and isolated. Native selects explicitly set dark-theme background and text colors. Touch controls use intentional tap feedback, and gesture interactions always keep a click and keyboard path.
 
-Before declaring a surface complete, verify keyboard flow, focus visibility, loading and failure states, long and empty content, reduced motion, paused motion, desktop and mobile layouts, and the absence of horizontal overflow. Use Playwright for browser-visible implementation checks.
+Before declaring a surface complete, verify keyboard flow, focus visibility, loading and failure states, long and empty content, reduced motion, offscreen animation suspension, desktop and mobile layouts, and the absence of horizontal overflow. Use Playwright for browser-visible implementation checks.
 
 ## Do's and Don'ts
 
@@ -262,7 +262,7 @@ Don't:
 - [ ] Orange is reserved for action and selection; status colors retain their meanings.
 - [ ] Loading, empty, simulated, stale, disconnected, degraded, unavailable, error, and success states exist.
 - [ ] Real and simulated data are clearly distinguished.
-- [ ] Keyboard, focus, contrast, semantic structure, pause controls, and reduced motion are verified.
+- [ ] Keyboard, focus, contrast, semantic structure, offscreen animation suspension, and reduced motion are verified.
 - [ ] Layouts are checked at 320, 390, 768, 1024, 1440, and 1920px.
 - [ ] No document-level horizontal scrolling or unbounded animation work appears.
 - [ ] No unsupported safety, QGPS, Garmin, customer, or field-performance claims appear.
