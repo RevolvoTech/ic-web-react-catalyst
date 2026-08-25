@@ -31,7 +31,6 @@ export function SiteFooter() {
       </div>
       <div className="shell site-footer__base">
         <span>© {new Date().getFullYear()} Catalyst</span>
-        <span>Milestone 1 · Pilot interface</span>
       </div>
     </footer>
   );
