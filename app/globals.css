@@ -502,24 +502,6 @@ textarea,
     linear-gradient(to right, color-mix(in srgb, var(--color-canvas) 86%, transparent), transparent 72%);
 }
 
-.editorial-hero__wash::after {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 68% 88% at 12% 48%,
-    color-mix(in srgb, var(--color-action) 58%, transparent) 0%,
-    color-mix(in srgb, var(--color-action) 28%, transparent) 36%,
-    transparent 74%
-  );
-  content: "";
-  opacity: 0.34;
-  pointer-events: none;
-}
-
-.editorial-hero--home .editorial-hero__wash::after {
-  opacity: 0.5;
-}
-
 .editorial-hero__content {
   position: relative;
   z-index: 2;
@@ -736,11 +718,6 @@ textarea,
 }
 
 @media (max-width: 40rem) {
-  .editorial-hero__wash::after,
-  .editorial-hero--home .editorial-hero__wash::after {
-    opacity: 0.26;
-  }
-
   .editorial-hero__content h1,
   .editorial-hero:not(.editorial-hero--home) .editorial-hero__content h1 {
     max-width: 8ch;
