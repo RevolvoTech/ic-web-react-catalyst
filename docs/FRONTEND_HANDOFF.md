@@ -22,7 +22,7 @@ and have that data appear correctly in the command view.
 The product is decision support. It must never claim a route is **SAFE** or
 **UNSAFE**, hide stale data, or present missing data as current.
 
-## Catalyst Milestone 1 — Website and QGPS
+## Catalyst Milestone 1 — Website and QGIS
 
 This is a client-requested bootstrap milestone before the source plan's numbered
 milestones.
@@ -31,29 +31,29 @@ Deliver:
 
 - A polished responsive Catalyst website explaining the product, pilot workflow,
   web command interface, offline mobile role, and future Garmin scope.
-- Pages for Home, Platform, QGPS Integration, and Demo.
-- A map-based QGPS demo showing current position, recent track, timestamp,
+- Pages for Home, Platform, QGIS Integration, and Demo.
+- A map-based QGIS fixture demo showing current position, recent track, timestamp,
   accuracy/fix details when supplied, and connection/freshness state.
-- Integration through the Catalyst backend; the browser must not connect to QGPS
+- Integration through the Catalyst backend; the browser must not connect to QGIS
   directly.
 - Clear **Live**, **Simulated**, **Stale**, **Offline**, and **Unavailable** labels.
 
-Before calling the integration complete, record the exact QGPS project,
-repository, license, protocol, and supported data. Fixtures are fine for UI work,
+Before calling the integration complete, record the exact QGIS deployment,
+edition, version, license, service API, and supported data. Fixtures are fine for UI work,
 but a simulated demo is not a completed live integration.
 
 Completion checklist:
 
-- [ ] Home, Platform, QGPS Integration, and Demo pages are complete.
+- [ ] Home, Platform, QGIS Integration, and Demo pages are complete.
 - [ ] The experience follows `DESIGN.md` and works on desktop and mobile.
-- [ ] The real QGPS source and protocol are documented.
-- [ ] QGPS data comes through the backend API.
+- [ ] The real QGIS source and service API are documented.
+- [ ] QGIS data comes through the backend API.
 - [ ] Position, track, timestamps, accuracy, and data state render correctly.
 - [ ] Loading, empty, error, stale, offline, and simulated states are tested.
 - [ ] Accessibility, lint, type-check, tests, production build, and browser checks
       pass.
 
-If the real QGPS dependency is unavailable, report Milestone 1 as partially
+If the real QGIS deployment is unavailable, report Milestone 1 as partially
 complete. Do not hide the gap behind simulated data.
 
 ## Source MVP Requirements Assigned to the Web

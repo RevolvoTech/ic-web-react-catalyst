@@ -19,10 +19,24 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "npm.cmd run dev -- --hostname 127.0.0.1",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      name: "Catalyst backend",
+      command: "node src/server.js",
+      cwd: "../ic-web-node-catalyst",
+      url: "http://127.0.0.1:4000/healthz",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      name: "Catalyst website",
+      command: "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
+      url: "http://127.0.0.1:3000",
+      env: {
+        CATALYST_BACKEND_URL: "http://127.0.0.1:4000",
+      },
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
 });

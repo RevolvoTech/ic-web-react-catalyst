@@ -4,10 +4,10 @@ import { useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { FeatureCollection, LineString, Point } from "geojson";
-import type { QgpsSnapshot } from "@/lib/qgps";
+import type { QgisSnapshot } from "@/lib/qgis";
 
-interface QgpsMapProps {
-  snapshot: QgpsSnapshot | null;
+interface QgisMapProps {
+  snapshot: QgisSnapshot | null;
   busy: boolean;
 }
 
@@ -71,7 +71,7 @@ function colorsFromDocument() {
   };
 }
 
-function actualTrackData(snapshot: QgpsSnapshot | null): LineFeatureCollection {
+function actualTrackData(snapshot: QgisSnapshot | null): LineFeatureCollection {
   if (!snapshot || snapshot.track.length < 2) return emptyLines;
   return {
     type: "FeatureCollection",
@@ -88,7 +88,7 @@ function actualTrackData(snapshot: QgpsSnapshot | null): LineFeatureCollection {
   };
 }
 
-function positionData(snapshot: QgpsSnapshot | null): PointFeatureCollection {
+function positionData(snapshot: QgisSnapshot | null): PointFeatureCollection {
   if (!snapshot?.position) return emptyPoints;
   return {
     type: "FeatureCollection",
@@ -105,7 +105,7 @@ function positionData(snapshot: QgpsSnapshot | null): PointFeatureCollection {
   };
 }
 
-export function QgpsMap({ snapshot, busy }: QgpsMapProps) {
+export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const reduceMotion = useReducedMotion();
@@ -247,6 +247,13 @@ export function QgpsMap({ snapshot, busy }: QgpsMapProps) {
 
     (map.getSource("actual") as GeoJSONSource | undefined)?.setData(actualTrackData(snapshot));
     (map.getSource("position") as GeoJSONSource | undefined)?.setData(positionData(snapshot));
+    const showFixtureGeometry = snapshot?.mode !== "live";
+    (map.getSource("contours") as GeoJSONSource | undefined)?.setData(
+      showFixtureGeometry ? contourLines : emptyLines,
+    );
+    (map.getSource("planned") as GeoJSONSource | undefined)?.setData(
+      showFixtureGeometry ? plannedRoute : emptyLines,
+    );
 
     if (snapshot?.track.length) {
       const coordinates = snapshot.track.map((point) => [point.longitude, point.latitude] as [number, number]);
@@ -268,35 +275,35 @@ export function QgpsMap({ snapshot, busy }: QgpsMapProps) {
   }, [ready, reduceMotion, snapshot]);
 
   return (
-    <div className="qgps-map" data-map-ready={ready || undefined}>
+    <div className="qgis-map" data-map-ready={ready || undefined}>
       <div
         ref={containerRef}
-        className="qgps-map__surface"
+        className="qgis-map__surface"
         role="region"
-        aria-label="Interactive simulated QGPS route map"
+        aria-label="Interactive simulated QGIS route map"
       />
-      <div className="qgps-map__grid" aria-hidden="true" />
-      <div className="qgps-map__label">
-        <span>MapLibre operational plot</span>
-        <span>No third-party basemap</span>
+      <div className="qgis-map__grid" aria-hidden="true" />
+      <div className="qgis-map__label">
+        <span>{snapshot?.mode === "live" ? "Normalized position plot" : "Catalyst fixture geometry"}</span>
+        <span>{snapshot?.mode === "live" ? "No route geometry supplied" : "No third-party basemap"}</span>
       </div>
-      <div className="qgps-map__legend" aria-label="Map legend">
-        <span><i data-kind="planned" /> Planned route</span>
+      <div className="qgis-map__legend" aria-label="Map legend">
+        {snapshot?.mode !== "live" ? <span><i data-kind="planned" /> Fixture planned route</span> : null}
         <span><i data-kind="actual" /> Recent track</span>
         <span><i data-kind="position" /> Latest position</span>
       </div>
       {!ready && !mapError ? (
-        <div className="qgps-map__message" role="status">
+        <div className="qgis-map__message" role="status">
           <span className="page-loading__signal" aria-hidden="true" />
           Initializing map…
         </div>
       ) : null}
       {mapError ? (
-        <div className="qgps-map__message" role="status">
+        <div className="qgis-map__message" role="status">
           Map surface unavailable. Position details remain in the inspector.
         </div>
       ) : null}
-      {busy ? <div className="qgps-map__busy" aria-hidden="true" /> : null}
+      {busy ? <div className="qgis-map__busy" aria-hidden="true" /> : null}
     </div>
   );
 }

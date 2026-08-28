@@ -1,20 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  QGPS_SCHEMA_VERSION,
+  QGIS_SCHEMA_VERSION,
   createSimulatedSnapshot,
   deriveFreshness,
   formatAge,
   formatCoordinate,
-  isQgpsScenario,
-  qgpsScenarios,
-} from "../lib/qgps";
+  isQgisScenario,
+  isQgisSnapshot,
+  qgisScenarios,
+} from "../lib/qgis";
 
 const NOW = new Date("2026-08-24T12:00:00.000Z");
 
-describe("QGPS scenario validation", () => {
+describe("QGIS scenario validation", () => {
   it("exposes the supported fixture scenarios", () => {
-    expect(qgpsScenarios).toEqual([
+    expect(qgisScenarios).toEqual([
       "current",
       "stale",
       "offline",
@@ -23,19 +24,19 @@ describe("QGPS scenario validation", () => {
     ]);
   });
 
-  it.each(qgpsScenarios)("accepts the %s scenario", (scenario) => {
-    expect(isQgpsScenario(scenario)).toBe(true);
+  it.each(qgisScenarios)("accepts the %s scenario", (scenario) => {
+    expect(isQgisScenario(scenario)).toBe(true);
   });
 
   it.each([null, "", "error", "live", "CURRENT", "unknown"])(
     "rejects unsupported scenario %s",
     (scenario) => {
-      expect(isQgpsScenario(scenario)).toBe(false);
+      expect(isQgisScenario(scenario)).toBe(false);
     },
   );
 });
 
-describe("simulated QGPS snapshots", () => {
+describe("simulated QGIS snapshots", () => {
   it.each([
     ["current", "connected", "current"],
     ["stale", "connected", "stale"],
@@ -48,7 +49,7 @@ describe("simulated QGPS snapshots", () => {
       const snapshot = createSimulatedSnapshot(scenario, NOW);
 
       expect(snapshot).toMatchObject({
-        schemaVersion: QGPS_SCHEMA_VERSION,
+        schemaVersion: QGIS_SCHEMA_VERSION,
         mode: "simulated",
         scenario,
         connection: { state: connectionState },
@@ -57,7 +58,7 @@ describe("simulated QGPS snapshots", () => {
     },
   );
 
-  it.each(qgpsScenarios)(
+  it.each(qgisScenarios)(
     "never marks the %s simulated fixture as live",
     (scenario) => {
       const snapshot = createSimulatedSnapshot(scenario, NOW);
@@ -112,7 +113,7 @@ describe("simulated QGPS snapshots", () => {
 
     expect(snapshot.connection).toEqual({
       state: "offline",
-      receivedAt: NOW.toISOString(),
+      receivedAt: "2026-08-24T11:42:00.000Z",
     });
     expect(snapshot.freshness).toBe("offline");
     expect(snapshot.position?.timestamp).toBe("2026-08-24T11:42:00.000Z");
@@ -129,7 +130,7 @@ describe("simulated QGPS snapshots", () => {
     });
     expect(snapshot.position).toBeNull();
     expect(snapshot.track).toEqual([]);
-    expect(snapshot.notice).toContain("No QGPS source is configured");
+    expect(snapshot.notice).toContain("No QGIS source is configured");
   });
 
   it("represents a connected but empty source without zero-value data", () => {
@@ -137,7 +138,7 @@ describe("simulated QGPS snapshots", () => {
 
     expect(snapshot.connection).toEqual({
       state: "connected",
-      receivedAt: null,
+      receivedAt: NOW.toISOString(),
     });
     expect(snapshot.freshness).toBe("unknown");
     expect(snapshot.position).toBeNull();
@@ -149,8 +150,8 @@ describe("simulated QGPS snapshots", () => {
     const snapshot = createSimulatedSnapshot("current", NOW);
 
     expect(snapshot.source).toEqual({
-      name: "Catalyst QGPS fixture",
-      adapter: "Catalyst backend API",
+      name: "Catalyst QGIS fixture",
+      adapter: "website-local-fixture-adapter",
       project: null,
       repository: null,
       license: null,
@@ -159,7 +160,92 @@ describe("simulated QGPS snapshots", () => {
   });
 });
 
-describe("QGPS freshness derivation", () => {
+describe("QGIS snapshot runtime validation", () => {
+  it("accepts a complete normalized fixture", () => {
+    expect(isQgisSnapshot(createSimulatedSnapshot("current", NOW))).toBe(true);
+  });
+
+  it.each([
+    ["wrong schema", { schemaVersion: "catalyst.qgis.snapshot.v0" }],
+    ["missing notice", { notice: undefined }],
+    ["unsupported mode", { mode: "preview" }],
+  ])("rejects a snapshot with %s", (__, replacement) => {
+    const snapshot = createSimulatedSnapshot("current", NOW);
+    expect(isQgisSnapshot({ ...snapshot, ...replacement })).toBe(false);
+  });
+
+  it("rejects invalid coordinates, timestamps, and quality values", () => {
+    const snapshot = createSimulatedSnapshot("current", NOW);
+    const position = snapshot.position!;
+
+    expect(isQgisSnapshot({ ...snapshot, position: { ...position, latitude: 91 } })).toBe(false);
+    expect(
+      isQgisSnapshot({ ...snapshot, position: { ...position, timestamp: "2026-08-24T12:00:00" } }),
+    ).toBe(false);
+    expect(isQgisSnapshot({ ...snapshot, position: { ...position, accuracyM: -1 } })).toBe(false);
+  });
+
+  it("rejects a track that is not ordered from oldest to newest", () => {
+    const snapshot = createSimulatedSnapshot("current", NOW);
+    expect(isQgisSnapshot({ ...snapshot, track: [...snapshot.track].reverse() })).toBe(false);
+  });
+
+  it("rejects undeclared fields instead of proxying raw upstream data", () => {
+    const snapshot = createSimulatedSnapshot("current", NOW);
+
+    expect(isQgisSnapshot({ ...snapshot, rawPayload: { token: "secret" } })).toBe(false);
+    expect(
+      isQgisSnapshot({
+        ...snapshot,
+        source: { ...snapshot.source, credentials: "secret" },
+      }),
+    ).toBe(false);
+    expect(
+      isQgisSnapshot({
+        ...snapshot,
+        position: snapshot.position ? { ...snapshot.position, rawFix: "secret" } : null,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects impossible and non-RFC3339 timestamps", () => {
+    const snapshot = createSimulatedSnapshot("current", NOW);
+    const position = snapshot.position!;
+
+    expect(
+      isQgisSnapshot({
+        ...snapshot,
+        position: { ...position, timestamp: "2026-02-30T12:00:00Z" },
+      }),
+    ).toBe(false);
+    expect(
+      isQgisSnapshot({
+        ...snapshot,
+        position: { ...position, timestamp: "2026-08-24 12:00:00Z" },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects scenario labels that contradict connection or freshness state", () => {
+    const snapshot = createSimulatedSnapshot("offline", NOW);
+
+    expect(
+      isQgisSnapshot({
+        ...snapshot,
+        connection: { ...snapshot.connection, state: "connected" },
+        freshness: "current",
+      }),
+    ).toBe(false);
+    expect(
+      isQgisSnapshot({
+        ...createSimulatedSnapshot("unavailable", NOW),
+        freshness: "current",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("QGIS freshness derivation", () => {
   it("returns unknown when a connected source has no observation timestamp", () => {
     expect(deriveFreshness(null, "connected", NOW)).toBe("unknown");
   });
@@ -176,10 +262,10 @@ describe("QGPS freshness derivation", () => {
     ).toBe("stale");
   });
 
-  it("treats a future observation as current", () => {
+  it("treats an observation more than one minute in the future as unknown", () => {
     expect(
-      deriveFreshness("2026-08-24T12:01:00.000Z", "connected", NOW),
-    ).toBe("current");
+      deriveFreshness("2026-08-24T12:01:01.000Z", "connected", NOW),
+    ).toBe("unknown");
   });
 
   it("lets offline and unavailable connection states override timestamp age", () => {
@@ -194,7 +280,7 @@ describe("QGPS freshness derivation", () => {
   });
 });
 
-describe("QGPS display formatting", () => {
+describe("QGIS display formatting", () => {
   it.each([
     [35.7378, "N", "S", "35.73780° N"],
     [-76.5, "E", "W", "76.50000° W"],

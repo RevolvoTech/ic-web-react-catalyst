@@ -17,14 +17,14 @@ export function SiteFooter() {
         <nav className="site-footer__nav" aria-label="Footer navigation">
           <p className="eyebrow">Explore</p>
           <Link href="/platform">Platform</Link>
-          <Link href="/qgps">QGPS Integration</Link>
+          <Link href="/qgis">QGIS Integration</Link>
           <Link href="/demo">Interactive Demo</Link>
         </nav>
 
         <div className="site-footer__note">
           <p className="eyebrow">Operating principle</p>
           <p>Catalyst supports decisions. It does not declare a route safe or unsafe.</p>
-          <Link className="text-link" href="/qgps">
+          <Link className="text-link" href="/qgis">
             Review data provenance <ArrowUpRight aria-hidden="true" />
           </Link>
         </div>

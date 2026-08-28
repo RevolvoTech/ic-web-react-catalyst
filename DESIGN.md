@@ -265,4 +265,4 @@ Don't:
 - [ ] Keyboard, focus, contrast, semantic structure, offscreen animation suspension, and reduced motion are verified.
 - [ ] Layouts are checked at 320, 390, 768, 1024, 1440, and 1920px.
 - [ ] No document-level horizontal scrolling or unbounded animation work appears.
-- [ ] No unsupported safety, QGPS, Garmin, customer, or field-performance claims appear.
+- [ ] No unsupported safety, QGIS, Garmin, customer, or field-performance claims appear.

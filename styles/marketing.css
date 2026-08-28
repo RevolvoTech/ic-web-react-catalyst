@@ -931,7 +931,7 @@
   margin-bottom: 2rem;
 }
 
-/* QGPS */
+/* QGIS */
 .integration-status {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(19rem, 0.65fr);

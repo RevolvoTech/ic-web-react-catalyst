@@ -94,7 +94,7 @@ const revealRules: RevealRule[] = [
     distance: 14,
   },
 
-  // QGPS integration
+  // QGIS integration
   {
     trigger: ".integration-status > div",
     cascade: 0.075,
@@ -149,7 +149,7 @@ const revealRules: RevealRule[] = [
   },
   { trigger: ".operations-console__header", distance: 10, duration: 0.48 },
   {
-    trigger: ".operations-console__workspace > .qgps-map",
+    trigger: ".operations-console__workspace > .qgis-map",
     amount: 0.1,
     distance: 18,
     duration: 0.76,

@@ -14,19 +14,20 @@ import {
 } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { QgpsMap } from "@/components/qgps-map";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { QgisMap } from "@/components/qgis-map";
 import { StatusBadge } from "@/components/status-badge";
 import {
   formatAge,
   formatCoordinate,
-  isQgpsScenario,
-  type QgpsFreshness,
-  type QgpsScenario,
-  type QgpsSnapshot,
-} from "@/lib/qgps";
+  isQgisScenario,
+  isQgisSnapshot,
+  type QgisFreshness,
+  type QgisScenario,
+  type QgisSnapshot,
+} from "@/lib/qgis";
 
-type DemoScenario = QgpsScenario | "error";
+type DemoScenario = QgisScenario | "error";
 
 const scenarios: ReadonlyArray<{
   id: DemoScenario;
@@ -41,7 +42,7 @@ const scenarios: ReadonlyArray<{
   { id: "unavailable", label: "Unavailable", description: "No upstream source configured" },
 ];
 
-const freshnessTone: Record<QgpsFreshness, "information" | "warning" | "critical" | "unknown"> = {
+const freshnessTone: Record<QgisFreshness, "information" | "warning" | "critical" | "unknown"> = {
   current: "information",
   stale: "warning",
   offline: "unknown",
@@ -49,7 +50,7 @@ const freshnessTone: Record<QgpsFreshness, "information" | "warning" | "critical
   unknown: "unknown",
 };
 
-const freshnessLabel: Record<QgpsFreshness, string> = {
+const freshnessLabel: Record<QgisFreshness, string> = {
   current: "Current",
   stale: "Stale",
   offline: "Offline",
@@ -59,7 +60,22 @@ const freshnessLabel: Record<QgpsFreshness, string> = {
 
 function scenarioFromSearch(value: string | null): DemoScenario {
   if (value === "error") return value;
-  return isQgpsScenario(value) ? value : "current";
+  return isQgisScenario(value) ? value : "current";
+}
+
+function responseErrorMessage(value: unknown) {
+  if (typeof value !== "object" || value === null || !("error" in value)) return null;
+  const { error } = value;
+  if (typeof error === "string") return error;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return null;
 }
 
 function formatTimestamp(value: string) {
@@ -69,46 +85,58 @@ function formatTimestamp(value: string) {
   }).format(new Date(value));
 }
 
-export function QgpsDemo() {
+export function QgisDemo() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const scenario = scenarioFromSearch(searchParams.get("state"));
-  const [snapshot, setSnapshot] = useState<QgpsSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<QgisSnapshot | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
+    const requestNumber = ++requestSequence.current;
 
-    fetch(`/api/qgps/snapshot?scenario=${encodeURIComponent(scenario)}`, {
+    fetch(`/api/qgis/snapshot?scenario=${encodeURIComponent(scenario)}`, {
       signal: controller.signal,
       headers: { accept: "application/json" },
     })
       .then(async (response) => {
-        const body = (await response.json()) as QgpsSnapshot | { error?: string };
+        const body: unknown = await response.json();
         if (!response.ok) {
-          throw new Error("error" in body && body.error ? body.error : "QGPS request failed.");
+          throw new Error(responseErrorMessage(body) ?? "QGIS request failed.");
         }
+        if (!isQgisSnapshot(body)) throw new Error("Catalyst returned an invalid QGIS snapshot.");
+        if (controller.signal.aborted || requestNumber !== requestSequence.current) return;
         setError(null);
-        setSnapshot(body as QgpsSnapshot);
+        setSnapshot(body);
       })
       .catch((requestError: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(requestError instanceof Error ? requestError.message : "QGPS request failed.");
+        if (controller.signal.aborted || requestNumber !== requestSequence.current) return;
+        setError(requestError instanceof Error ? requestError.message : "QGIS request failed.");
       })
       .finally(() => {
-        if (!controller.signal.aborted) setBusy(false);
+        if (requestNumber === requestSequence.current) setBusy(false);
       });
 
-    return () => controller.abort();
-  }, [scenario]);
+    return () => {
+      controller.abort();
+      if (requestSequence.current === requestNumber) requestSequence.current += 1;
+    };
+  }, [refreshKey, scenario]);
 
   const recentTrack = useMemo(() => snapshot?.track.slice(-5).reverse() ?? [], [snapshot]);
 
   function selectScenario(nextScenario: DemoScenario) {
     setBusy(true);
     setError(null);
+    if (nextScenario === scenario) {
+      setRefreshKey((value) => value + 1);
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("state", nextScenario);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -118,14 +146,14 @@ export function QgpsDemo() {
     <div className="demo-experience">
       <section className="demo-intro shell">
         <div>
-          <p className="eyebrow">QGPS state lab</p>
+          <p className="eyebrow">QGIS state lab</p>
           <h1>Read the position.<br /><em>Judge the signal.</em></h1>
         </div>
         <div className="demo-intro__copy">
           <StatusBadge tone="simulated">Simulated only</StatusBadge>
           <p>
             This map receives normalized fixtures through the Catalyst backend route. It does not
-            connect to a QGPS source and must not be used for field decisions.
+            connect to a verified live QGIS source and must not be used for field decisions.
           </p>
         </div>
       </section>
@@ -199,9 +227,9 @@ export function QgpsDemo() {
         </AnimatePresence>
 
         <div className="operations-console__workspace" aria-busy={busy}>
-          <QgpsMap snapshot={snapshot} busy={busy} />
+          <QgisMap snapshot={snapshot} busy={busy} />
 
-          <aside className="position-inspector" aria-label="QGPS position inspector">
+          <aside className="position-inspector" aria-label="QGIS position inspector">
             <div className="position-inspector__title">
               <div>
                 <span className="data-label">Team</span>
@@ -257,8 +285,8 @@ export function QgpsDemo() {
               <Database aria-hidden="true" />
               <div>
                 <span className="data-label">Source</span>
-                <strong>{snapshot?.source.name ?? "Catalyst QGPS fixture"}</strong>
-                <span>Via {snapshot?.source.adapter ?? "Catalyst backend API"}</span>
+                <strong>{snapshot?.source.name ?? "Catalyst QGIS fixture"}</strong>
+                <span>Via {snapshot?.source.adapter ?? "adapter pending"}</span>
               </div>
             </div>
           </aside>
@@ -283,7 +311,7 @@ export function QgpsDemo() {
         </div>
 
         <footer className="operations-console__footer">
-          <span>Schema: {snapshot?.schemaVersion ?? "catalyst.qgps.snapshot.v1"}</span>
+          <span>Schema: {snapshot?.schemaVersion ?? "catalyst.qgis.snapshot.v1"}</span>
           <span>Map attribution: MapLibre GL JS · Catalyst fixture geometry</span>
           <span>No production tile source configured</span>
         </footer>
@@ -329,8 +357,8 @@ export function QgpsDemo() {
           <p className="eyebrow">Integration limitation</p>
           <h2>Simulation proves interface behavior—not upstream compatibility.</h2>
           <p>
-            Live completion requires the exact QGPS project, license, protocol, sample data, backend
-            implementation, and a verified end-to-end test. Those inputs are currently unavailable.
+            Live completion requires a verified QGIS deployment, version, license, representative
+            data, production adapter, and an accepted end-to-end test. Those inputs remain unavailable.
           </p>
         </div>
       </aside>

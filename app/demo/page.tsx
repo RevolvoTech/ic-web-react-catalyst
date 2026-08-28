@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { QgpsDemo } from "@/components/qgps-demo";
+import { QgisDemo } from "@/components/qgis-demo";
 
 export const metadata: Metadata = {
-  title: "QGPS State Demo",
+  title: "QGIS State Demo",
   description:
-    "Inspect simulated current, stale, offline, empty, error, and unavailable QGPS states through the Catalyst backend boundary.",
+    "Inspect simulated current, stale, offline, empty, error, and unavailable QGIS states through the Catalyst backend boundary.",
 };
 
 function DemoFallback() {
   return (
     <div className="demo-fallback shell" role="status">
       <span className="page-loading__signal" aria-hidden="true" />
-      Preparing the QGPS state lab…
+      Preparing the QGIS state lab…
     </div>
   );
 }
@@ -20,7 +20,7 @@ function DemoFallback() {
 export default function DemoPage() {
   return (
     <Suspense fallback={<DemoFallback />}>
-      <QgpsDemo />
+      <QgisDemo />
     </Suspense>
   );
 }

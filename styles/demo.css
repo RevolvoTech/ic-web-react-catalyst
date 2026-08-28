@@ -171,7 +171,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(19rem, 24rem);
 }
 
-.qgps-map {
+.qgis-map {
   position: relative;
   min-width: 0;
   min-height: 42rem;
@@ -179,18 +179,18 @@
   background: var(--color-canvas-alternate);
 }
 
-.qgps-map__surface,
-.qgps-map__grid,
-.qgps-map__busy {
+.qgis-map__surface,
+.qgis-map__grid,
+.qgis-map__busy {
   position: absolute;
   inset: 0;
 }
 
-.qgps-map__surface {
+.qgis-map__surface {
   z-index: 1;
 }
 
-.qgps-map__grid {
+.qgis-map__grid {
   z-index: 2;
   pointer-events: none;
   background:
@@ -201,14 +201,14 @@
   opacity: 0.35;
 }
 
-.qgps-map__busy {
+.qgis-map__busy {
   z-index: 5;
   pointer-events: none;
   background: color-mix(in srgb, var(--color-canvas) 22%, transparent);
 }
 
-.qgps-map__label,
-.qgps-map__legend {
+.qgis-map__label,
+.qgis-map__legend {
   position: absolute;
   z-index: 4;
   border: 1px solid var(--color-border);
@@ -219,7 +219,7 @@
   font-size: 0.62rem;
 }
 
-.qgps-map__label {
+.qgis-map__label {
   top: 1rem;
   left: 1rem;
   display: flex;
@@ -229,11 +229,11 @@
   overflow-wrap: anywhere;
 }
 
-.qgps-map__label span:last-child {
+.qgis-map__label span:last-child {
   color: var(--color-warning);
 }
 
-.qgps-map__legend {
+.qgis-map__legend {
   right: auto;
   bottom: 1rem;
   left: 1rem;
@@ -245,34 +245,34 @@
   padding: 0.7rem;
 }
 
-.qgps-map__legend span {
+.qgis-map__legend span {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
 }
 
-.qgps-map__legend i {
+.qgis-map__legend i {
   width: 1.2rem;
   height: 2px;
   background: var(--color-unknown);
 }
 
-.qgps-map__legend i[data-kind="planned"] {
+.qgis-map__legend i[data-kind="planned"] {
   background: var(--color-action);
 }
 
-.qgps-map__legend i[data-kind="actual"] {
+.qgis-map__legend i[data-kind="actual"] {
   background: var(--color-information);
 }
 
-.qgps-map__legend i[data-kind="position"] {
+.qgis-map__legend i[data-kind="position"] {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
   background: var(--color-information);
 }
 
-.qgps-map__message {
+.qgis-map__message {
   position: absolute;
   z-index: 6;
   top: 50%;
@@ -291,7 +291,7 @@
   text-align: center;
 }
 
-.qgps-map .maplibregl-ctrl-group {
+.qgis-map .maplibregl-ctrl-group {
   overflow: hidden;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
@@ -299,26 +299,26 @@
   box-shadow: none;
 }
 
-.qgps-map .maplibregl-ctrl-top-right {
+.qgis-map .maplibregl-ctrl-top-right {
   top: 1rem;
   right: 1rem;
 }
 
-.qgps-map .maplibregl-ctrl-top-right .maplibregl-ctrl {
+.qgis-map .maplibregl-ctrl-top-right .maplibregl-ctrl {
   margin: 0;
 }
 
-.qgps-map .maplibregl-ctrl-group button {
+.qgis-map .maplibregl-ctrl-group button {
   width: 2.75rem;
   height: 2.75rem;
   background-color: var(--color-surface);
 }
 
-.qgps-map .maplibregl-ctrl-group button + button {
+.qgis-map .maplibregl-ctrl-group button + button {
   border-top: 1px solid var(--color-border);
 }
 
-.qgps-map .maplibregl-ctrl button .maplibregl-ctrl-icon {
+.qgis-map .maplibregl-ctrl button .maplibregl-ctrl-icon {
   filter: invert(1);
   opacity: 0.85;
 }
@@ -636,7 +636,7 @@
     grid-template-columns: 1fr;
   }
 
-  .qgps-map {
+  .qgis-map {
     min-height: clamp(32rem, 65svh, 36rem);
   }
 
@@ -686,18 +686,18 @@
     grid-column: 1 / -1;
   }
 
-  .qgps-map {
+  .qgis-map {
     min-height: clamp(27rem, 68svh, 31rem);
   }
 
-  .qgps-map__legend {
+  .qgis-map__legend {
     display: grid;
     width: min(22rem, calc(100% - 2rem));
     max-width: none;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .qgps-map__legend span:last-child {
+  .qgis-map__legend span:last-child {
     grid-column: 1 / -1;
   }
 
@@ -724,7 +724,7 @@
     border-right: 0;
   }
 
-  .qgps-map__legend span {
+  .qgis-map__legend span {
     width: 100%;
   }
 

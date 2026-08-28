@@ -1,24 +1,22 @@
-# QGPS Integration Record
+# QGIS Integration Record
 
 ## Status
 
-**Partially complete — simulated only. There is no verified live QGPS integration.**
+**Partially complete — fixture backend only. There is no verified live QGIS integration.**
 
 This record describes the Milestone 1 boundary that exists in this repository and
 the evidence still required to complete the integration. It must not be read as
-confirmation that a particular product or open-source project called “QGPS” has
-been selected.
+confirmation that a production QGIS deployment has been connected or accepted.
 
-As of 2026-08-24:
+As of 2026-08-28:
 
-- the exact QGPS project, repository, version, owner, and license are unconfirmed;
-- the QGPS transport and application protocol are unconfirmed;
+- the exact live QGIS deployment, edition, version, owner, and license are unconfirmed;
+- the live QGIS service API, authentication, and network topology are unconfirmed;
 - the supported live fields, units, coordinate datum, altitude reference, update
   cadence, authentication, and failure behaviour are unconfirmed;
-- the referenced Catalyst backend repository, `ic-web-node-catalyst`, has no
-  verified QGPS implementation or agreed response contract; and
-- public projects and products with similar QGPS names are ambiguous. None can be
-  adopted merely because its name appears to match.
+- the Catalyst backend repository, `ic-web-node-catalyst`, now provides a runnable
+  fixture API and the provisional normalized response contract; and
+- no verified live QGIS service or representative production payload is connected.
 
 The current UI and API path are therefore a contract-shaped fixture for frontend
 development. They are not evidence of a live device, service, or data feed.
@@ -29,21 +27,21 @@ The browser must only request the same-origin Catalyst endpoint:
 
 ```text
 Browser
-  GET /api/qgps/snapshot
+  GET /api/qgis/snapshot
         |
         v
 Next.js server route
-  app/api/qgps/snapshot/route.ts
+  app/api/qgis/snapshot/route.ts
         |
         +-- CATALYST_BACKEND_URL is set
-        |     GET {CATALYST_BACKEND_URL}/api/v1/integrations/qgps/snapshot
+        |     GET {CATALYST_BACKEND_URL}/api/v1/integrations/qgis/snapshot
         |
         +-- CATALYST_BACKEND_URL is not set
               return an explicitly simulated local fixture
 ```
 
-The browser must never connect directly to a QGPS device, daemon, repository, or
-third-party endpoint. `CATALYST_BACKEND_URL` is a server-side setting and must not
+The browser must never connect directly to a QGIS service, deployment, data store,
+or third-party endpoint. `CATALYST_BACKEND_URL` is a server-side setting and must not
 be exposed as a `NEXT_PUBLIC_*` variable.
 
 Current route behaviour:
@@ -52,35 +50,44 @@ Current route behaviour:
   `Cache-Control: no-store`;
 - the proxy sends `Accept: application/json` and a Catalyst request ID;
 - the upstream request times out after eight seconds;
-- a configured backend that is unreachable or returns a non-success status
-  produces a `502` response; it does **not** silently fall back to simulation;
+- an unreachable, malformed, or invalidly configured backend produces a `502`;
+- validated backend `4xx` and `503` error envelopes preserve their status and safe
+  public message; failures never silently fall back to simulation;
 - with no configured backend, the route returns `mode: "simulated"`; and
 - `?scenario=` is a demo/fixture control. A production contract must remove,
   restrict, or explicitly define it before release. It must not be treated as a
   live-source feature.
 
-The proposed upstream path is
-`/api/v1/integrations/qgps/snapshot`. That path is a frontend expectation, not an
-accepted backend contract, until the backend team implements and signs off on it.
+The local fallback reports `source.adapter: "website-local-fixture-adapter"`,
+while the sibling fixture backend reports `source.adapter:
+"fixture-qgis-adapter"`. The Playwright configuration starts both services,
+injects `CATALYST_BACKEND_URL` into Next.js, and asserts the backend identifier so
+the end-to-end check cannot pass by silently using the website fallback.
+
+The fixture backend implements `/api/v1/integrations/qgis/snapshot` together with
+`/healthz`, `/api/v1/integrations/qgis/status`, `/position`, `/track`, and
+`/openapi.json`. This proves the
+HTTP boundary and fixture behavior; it does not prove compatibility with a live
+QGIS deployment.
 
 ## Normalized snapshot DTO
 
 The frontend currently normalizes data to schema
-`catalyst.qgps.snapshot.v1`. The canonical TypeScript definition lives in
-`lib/qgps.ts`. This DTO is provisional until it is validated against the real
+`catalyst.qgis.snapshot.v1`. The canonical TypeScript definition lives in
+`lib/qgis.ts`. This DTO is provisional until it is validated against the real
 source and agreed with the backend.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schemaVersion` | `"catalyst.qgps.snapshot.v1"` | Version of the normalized Catalyst payload, not a QGPS protocol version. |
+| `schemaVersion` | `"catalyst.qgis.snapshot.v1"` | Version of the normalized Catalyst payload, not a QGIS protocol version. |
 | `mode` | `"live" \| "simulated"` | Provenance of the payload. `simulated` must remain visible to the user. |
 | `scenario` | `current \| stale \| offline \| unavailable \| empty` | Fixture/demo scenario selector. It is not a confirmed live-source field. |
 | `expedition.id` | `string` | Catalyst expedition identifier. Fixture values are invented demo data. |
 | `expedition.name` | `string` | Display name for the expedition. |
 | `expedition.team` | `string` | Display name for the reporting team. |
 | `source.name` | `string` | Human-readable source name. It must identify the real source once known. |
-| `source.adapter` | `string` | Backend adapter responsible for normalization. It is not the device protocol. |
-| `source.project` | `string \| null` | Exact upstream QGPS project/product. `null` means unconfirmed. |
+| `source.adapter` | `string` | Adapter or local fixture generator responsible for normalization. It is not the device protocol. |
+| `source.project` | `string \| null` | Exact upstream QGIS deployment/product. `null` means unconfirmed. |
 | `source.repository` | `string \| null` | Canonical repository URL and, eventually, pinned version/commit. `null` means unconfirmed. |
 | `source.license` | `string \| null` | Verified license identifier or commercial terms. `null` means unconfirmed. |
 | `source.protocol` | `string \| null` | Verified protocol name and version. `null` means unconfirmed. |
@@ -135,13 +142,15 @@ Display rules:
 2. **SIMULATED must never be labelled LIVE.** A recent fixture is only a current
    simulation.
 3. **LIVE** is permitted only when `mode: "live"` was set by the Catalyst backend
-   after data was obtained from the verified, configured QGPS source. Neither
+   after data was obtained from the verified, configured QGIS source. Neither
    `connected` nor `current` alone is sufficient.
 4. **STALE**, **OFFLINE**, and **UNAVAILABLE** remain visible when applicable and
    may be shown alongside **SIMULATED** or **LIVE** provenance.
 5. `position: null`, an empty `track`, an unknown accuracy, or an unknown fix must
    be displayed honestly. The UI must not infer a successful fix.
-6. These states provide decision support only. No state may be translated into a
+6. The demo's planned route and contours are fixture geometry. They are labelled
+   as fixtures and are removed if a future validated payload reports `mode: "live"`.
+7. These states provide decision support only. No state may be translated into a
    claim that a route or team is **SAFE** or **UNSAFE**.
 
 ## Fixture scenarios
@@ -166,8 +175,7 @@ invented demonstration data. They must not be used for operational decisions.
 The following evidence is required before implementing or approving a live
 adapter:
 
-- the exact QGPS product/project name, owner/vendor, canonical repository or
-  distribution location, and pinned version/commit;
+- the exact QGIS edition, deployment owner, service location, and pinned version;
 - the license or commercial agreement, including server use, modification,
   redistribution, attribution, and production-deployment constraints;
 - authoritative protocol documentation and version: transport, message framing,
@@ -181,7 +189,7 @@ adapter:
   satellite meaning, fix types, track ordering, and device/team identifiers;
 - expected update cadence, retention/history limits, and client-approved
   thresholds for current, stale, offline, and unavailable states;
-- the network topology and ownership boundary between the QGPS source and the
+- the network topology and ownership boundary between the QGIS source and the
   Catalyst backend, including staging connectivity and credentials supplied by
   an authorized owner;
 - privacy, consent, access-control, logging, and retention requirements for team
@@ -194,34 +202,36 @@ secure file-sharing channel, never committed to this repository.
 
 ## Completion gates
 
-The following is the honest QGPS-specific Milestone 1 record. Checked items prove
+The following is the honest QGIS-specific Milestone 1 record. Checked items prove
 only the fixture boundary, not a completed live integration.
 
-- [x] The browser has a same-origin Catalyst QGPS route and does not require a
-  direct QGPS connection.
+- [x] The browser has a same-origin Catalyst QGIS route and does not require a
+  direct QGIS connection.
 - [x] A versioned normalized DTO exists for frontend development.
 - [x] The local fallback identifies itself as `mode: "simulated"` and exposes
   current, stale, offline, unavailable, empty, and error test conditions.
 - [x] A configured but failing backend is surfaced as an error rather than being
   silently replaced with believable fixture data.
-- [ ] The exact QGPS project/product and owner are verified.
+- [x] A runnable fixture backend implements the provisional snapshot contract and
+  publishes health, status, position, track, snapshot, and OpenAPI endpoints.
+- [ ] The exact live QGIS deployment, edition, version, and owner are verified.
 - [ ] The canonical repository/distribution, pinned version, and license are
   verified and approved.
 - [ ] The protocol, authentication, supported data, units, datums, timestamp
   semantics, and update cadence are documented from authoritative material.
-- [ ] The backend team has agreed to and implemented the normalized contract.
-- [ ] A production backend adapter ingests the verified QGPS source without
+- [ ] The production backend contract and live-source mapping are agreed and implemented.
+- [ ] A production backend adapter ingests the verified QGIS source without
   exposing source credentials or connectivity to the browser.
 - [ ] Mapping and validation tests use representative source messages, including
   partial, malformed, no-fix, stale, offline, and unavailable cases.
 - [ ] Access control, privacy, retention, audit logging, timeout, retry, and
   observability behaviour are approved and tested.
-- [ ] An end-to-end test proves that a real QGPS observation travels through the
+- [ ] An end-to-end test proves that a real QGIS observation travels through the
   Catalyst backend and renders with correct position, track, timestamps,
   accuracy/fix details, source, and state.
 - [ ] A client/backend owner has accepted the live integration and its documented
   limitations.
 
 Until every unchecked gate that applies to live operation is complete, report the
-QGPS portion of Milestone 1 as **partially complete — simulated only**. Do not
-describe it as complete, connected to QGPS, production-ready, or live.
+QGIS portion of Milestone 1 as **partially complete — fixture backend only**. Do not
+describe it as complete, connected to live QGIS, production-ready, or live.

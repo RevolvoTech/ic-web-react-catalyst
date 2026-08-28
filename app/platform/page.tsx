@@ -203,10 +203,10 @@ export default function PlatformPage() {
 
       <section className="simple-cta shell">
         <p className="eyebrow">Next view</p>
-        <h2>See the QGPS boundary in detail.</h2>
+        <h2>See the QGIS boundary in detail.</h2>
         <p>Review what the demo proves, what remains simulated, and what must be confirmed before live integration.</p>
-        <Link className="button button--primary" href="/qgps">
-          Review QGPS Integration <ArrowRight aria-hidden="true" />
+        <Link className="button button--primary" href="/qgis">
+          Review QGIS Integration <ArrowRight aria-hidden="true" />
         </Link>
       </section>
     </>

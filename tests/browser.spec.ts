@@ -12,9 +12,9 @@ const routes = [
     currentNavigationItem: "Platform",
   },
   {
-    path: "/qgps",
+    path: "/qgis",
     h1: /Position data,\s+without false certainty\./i,
-    currentNavigationItem: "QGPS Integration",
+    currentNavigationItem: "QGIS Integration",
   },
   {
     path: "/demo",
@@ -51,7 +51,7 @@ async function selectScenario(page: Page, label: string, state: string) {
   const responsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
-      url.pathname === "/api/qgps/snapshot" &&
+      url.pathname === "/api/qgis/snapshot" &&
       url.searchParams.get("scenario") === state &&
       response.request().method() === "GET"
     );
@@ -69,7 +69,7 @@ async function expectSimulatedDisclosure(page: Page) {
   await expect(consoleStatuses(page).getByText("Simulated", { exact: true })).toBeVisible();
   await expect(consoleStatuses(page).getByText("Live", { exact: true })).toHaveCount(0);
   await expect(
-    page.getByText(/does not connect to a QGPS source and must not be used for field decisions/i),
+    page.getByText(/does not connect to a verified live QGIS source and must not be used for field decisions/i),
   ).toBeVisible();
 }
 
@@ -107,8 +107,8 @@ test.describe("route structure", () => {
         navigation.getByRole("link", { name: "Platform", exact: true }),
       ).toHaveAttribute("href", "/platform");
       await expect(
-        navigation.getByRole("link", { name: "QGPS Integration", exact: true }),
-      ).toHaveAttribute("href", "/qgps");
+        navigation.getByRole("link", { name: "QGIS Integration", exact: true }),
+      ).toHaveAttribute("href", "/qgis");
 
       const currentLinks = navigation.locator('[aria-current="page"]');
       if (route.currentNavigationItem) {
@@ -121,7 +121,37 @@ test.describe("route structure", () => {
   }
 });
 
-test.describe("QGPS demo state lab", () => {
+test.describe("QGIS demo state lab", () => {
+  test("same-origin endpoint proxies the validated backend fixture snapshot", async ({ request }) => {
+    const response = await request.get("/api/qgis/snapshot?scenario=current");
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()["cache-control"]).toContain("no-store");
+    const body = await response.json();
+    expect(body).toMatchObject({
+      schemaVersion: "catalyst.qgis.snapshot.v1",
+      mode: "simulated",
+      scenario: "current",
+      source: { adapter: "fixture-qgis-adapter" },
+    });
+  });
+
+  test("same-origin endpoint rejects invalid and duplicate scenarios", async ({ request }) => {
+    const invalid = await request.get("/api/qgis/snapshot?scenario=offlinee");
+    expect(invalid.status()).toBe(400);
+    expect(await invalid.json()).toMatchObject({
+      error: { code: "INVALID_SCENARIO" },
+    });
+
+    const duplicate = await request.get(
+      "/api/qgis/snapshot?scenario=current&scenario=stale",
+    );
+    expect(duplicate.status()).toBe(400);
+    expect(await duplicate.json()).toMatchObject({
+      error: { code: "DUPLICATE_QUERY_PARAMETER" },
+    });
+  });
+
   test("current fixture discloses simulation, provenance, time, and fix accuracy", async ({
     page,
   }) => {
@@ -130,7 +160,7 @@ test.describe("QGPS demo state lab", () => {
     await selectScenario(page, "Current fixture", "current");
     await expectSimulatedDisclosure(page);
 
-    const inspector = page.getByRole("complementary", { name: "QGPS position inspector" });
+    const inspector = page.getByRole("complementary", { name: "QGIS position inspector" });
     await expect(inspector.getByText("Latest position received", { exact: true })).toBeVisible();
     await expect(inspector.locator("time")).toHaveCount(1);
     await expect(inspector.locator("time")).toHaveAttribute(
@@ -140,9 +170,10 @@ test.describe("QGPS demo state lab", () => {
     await expect(inspector.getByText(/^\d+ min ago$/)).toBeVisible();
     await expect(inspector.getByText("Accuracy", { exact: true })).toBeVisible();
     await expect(inspector.getByText("±12 m", { exact: true })).toBeVisible();
-    await expect(inspector.getByText("Catalyst QGPS fixture", { exact: true })).toBeVisible();
-    await expect(inspector.getByText("Via Catalyst backend API", { exact: true })).toBeVisible();
-    await expect(page.getByText("Schema: catalyst.qgps.snapshot.v1", { exact: true })).toBeVisible();
+    await expect(inspector.getByText("Catalyst QGIS fixture", { exact: true })).toBeVisible();
+    await expect(inspector.getByText("Via fixture-qgis-adapter", { exact: true })).toBeVisible();
+    await expect(page.getByText("Fixture planned route", { exact: true })).toBeVisible();
+    await expect(page.getByText("Schema: catalyst.qgis.snapshot.v1", { exact: true })).toBeVisible();
   });
 
   test("switches to stale data and keeps the last-known fix visible", async ({ page }) => {
@@ -151,7 +182,7 @@ test.describe("QGPS demo state lab", () => {
     await expectSimulatedDisclosure(page);
 
     await expect(consoleStatuses(page).getByText("Stale", { exact: true })).toBeVisible();
-    const inspector = page.getByRole("complementary", { name: "QGPS position inspector" });
+    const inspector = page.getByRole("complementary", { name: "QGIS position inspector" });
     await expect(inspector.getByText(/^\d+ min ago$/)).toBeVisible();
     await expect(inspector.getByText("±12 m", { exact: true })).toBeVisible();
   });
@@ -162,7 +193,7 @@ test.describe("QGPS demo state lab", () => {
     await expectSimulatedDisclosure(page);
 
     await expect(consoleStatuses(page).getByText("Offline", { exact: true })).toBeVisible();
-    const inspector = page.getByRole("complementary", { name: "QGPS position inspector" });
+    const inspector = page.getByRole("complementary", { name: "QGIS position inspector" });
     await expect(inspector.getByText("Latest position received", { exact: true })).toBeVisible();
     await expect(inspector.locator("time")).toHaveAttribute("datetime", /.+/);
   });
@@ -175,7 +206,7 @@ test.describe("QGPS demo state lab", () => {
     await expect(consoleStatuses(page).getByText("Unknown", { exact: true })).toBeVisible();
     await expect(page.getByRole("status").getByText("No position received", { exact: true })).toBeVisible();
     await expect(
-      page.getByText("The simulated source is connected but has not supplied a position.", {
+      page.getByText("The simulated QGIS source is connected but has not supplied a position.", {
         exact: true,
       }),
     ).toBeVisible();
@@ -190,11 +221,11 @@ test.describe("QGPS demo state lab", () => {
     await expect(consoleStatuses(page).getByText("Error", { exact: true })).toBeVisible();
     const alert = page.getByRole("alert").filter({ hasText: "Position refresh failed" });
     await expect(alert.getByText("Position refresh failed", { exact: true })).toBeVisible();
-    await expect(alert).toContainText("The simulated backend rejected this request.");
+    await expect(alert).toContainText("The simulated QGIS adapter rejected this request.");
     await expect(alert).toContainText("The previous fixture remains visible below.");
     await expect(
       page
-        .getByRole("complementary", { name: "QGPS position inspector" })
+        .getByRole("complementary", { name: "QGIS position inspector" })
         .getByText("Latest position received", { exact: true }),
     ).toBeVisible();
   });
@@ -207,7 +238,7 @@ test.describe("QGPS demo state lab", () => {
     await expect(consoleStatuses(page).getByText("Unavailable", { exact: true })).toBeVisible();
     await expect(page.getByText("Position unavailable", { exact: true })).toBeVisible();
     await expect(
-      page.getByText("No QGPS source is configured for this environment.", { exact: true }),
+      page.getByText("No QGIS source is configured for this environment.", { exact: true }),
     ).toBeVisible();
     await expect(page.getByText("No recent track points", { exact: true })).toBeVisible();
   });
@@ -234,7 +265,7 @@ test.describe("QGPS demo state lab", () => {
     const requestGate = new Promise<void>((resolve) => {
       releaseRequest = resolve;
     });
-    await page.route("**/api/qgps/snapshot?scenario=stale", async (route) => {
+    await page.route("**/api/qgis/snapshot?scenario=stale", async (route) => {
       await requestGate;
       await route.continue();
     });
@@ -254,7 +285,7 @@ test.describe("QGPS demo state lab", () => {
 
 test("mobile navigation is keyboard operable, traps focus, and restores it", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/qgps");
+  await page.goto("/qgis");
 
   const skipLink = page.getByRole("link", { name: "Skip to main content" });
   const brandLink = page.getByRole("link", { name: "Catalyst home" }).first();
@@ -270,7 +301,7 @@ test("mobile navigation is keyboard operable, traps focus, and restores it", asy
 
   const mobileNavigation = page.getByRole("navigation", { name: "Mobile navigation" });
   const homeLink = mobileNavigation.getByRole("link", { name: "Home", exact: true });
-  const demoLink = mobileNavigation.getByRole("link", { name: "Open QGPS demo", exact: true });
+  const demoLink = mobileNavigation.getByRole("link", { name: "Open QGIS demo", exact: true });
   await expect(menuButton).toHaveAttribute("aria-expanded", "true");
   await expect(mobileNavigation).toBeVisible();
   await expect(homeLink).toBeFocused();
@@ -450,7 +481,7 @@ test("the closing image callout waits for its visible content and replays", asyn
   await expect(image).toHaveAttribute("data-motion-reveal", "complete");
 });
 
-test("Platform, QGPS, and Demo sections all animate and replay on scroll", async ({ page }) => {
+test("Platform, QGIS, and Demo sections all animate and replay on scroll", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
 
   const pages = [
@@ -467,7 +498,7 @@ test("Platform, QGPS, and Demo sections all animate and replay on scroll", async
       ],
     },
     {
-      path: "/qgps",
+      path: "/qgis",
       top: ".editorial-hero",
       replayTarget: ".confirmation-list > ol > li:last-child",
       covered: [
@@ -487,7 +518,7 @@ test("Platform, QGPS, and Demo sections all animate and replay on scroll", async
       covered: [
         ".scenario-switcher > button",
         ".operations-console__header",
-        ".qgps-map",
+        ".qgis-map",
         ".position-inspector",
         ".operations-console__footer > span",
         ".track-list > div",
@@ -611,12 +642,12 @@ test("wide-screen shells use the available canvas instead of leaving oversized g
   }
 });
 
-test("the QGPS map overlays stay inside the map without colliding", async ({ page }) => {
+test("the QGIS map overlays stay inside the map without colliding", async ({ page }) => {
   const mapWidths = [280, 320, 360, 390, 412, 480, 768, 1024, 1440, 1920, 2560] as const;
 
   await page.setViewportSize({ width: mapWidths[0], height: 900 });
   await waitForCurrentFixture(page);
-  await expect(page.locator(".qgps-map .maplibregl-ctrl-group")).toBeVisible();
+  await expect(page.locator(".qgis-map .maplibregl-ctrl-group")).toBeVisible();
 
   for (const width of mapWidths) {
     await page.setViewportSize({ width, height: 900 });
@@ -629,11 +660,11 @@ test("the QGPS map overlays stay inside the map without colliding", async ({ pag
 
     const layout = await page.evaluate(() => {
       const selectors = {
-        map: ".qgps-map",
-        canvas: ".qgps-map .maplibregl-canvas",
-        label: ".qgps-map__label",
-        legend: ".qgps-map__legend",
-        controls: ".qgps-map .maplibregl-ctrl-group",
+        map: ".qgis-map",
+        canvas: ".qgis-map .maplibregl-canvas",
+        label: ".qgis-map__label",
+        legend: ".qgis-map__legend",
+        controls: ".qgis-map .maplibregl-ctrl-group",
       } as const;
       const boxes = Object.fromEntries(
         Object.entries(selectors).map(([name, selector]) => {
