@@ -41,7 +41,7 @@ Next.js server route
 ```
 
 The browser must never connect directly to a QGIS service, deployment, data store,
-or third-party endpoint. `CATALYST_BACKEND_URL` is a server-side setting and must not
+or third-party endpoint. `CATALYST_BACKEND_URL` is a server-side origin or mounted base URL and must not
 be exposed as a `NEXT_PUBLIC_*` variable.
 
 Current route behaviour:

@@ -10,6 +10,27 @@ import {
   isQgisSnapshot,
   qgisScenarios,
 } from "../lib/qgis";
+import { backendUrlWithPath } from "../lib/backend-url";
+
+describe("Catalyst backend URL composition", () => {
+  it("preserves a mounted production base path", () => {
+    expect(
+      backendUrlWithPath(
+        new URL("https://api.revolvo.tech/catalyst/"),
+        "/api/v1/integrations/qgis/snapshot",
+      ).toString(),
+    ).toBe("https://api.revolvo.tech/catalyst/api/v1/integrations/qgis/snapshot");
+  });
+
+  it("continues to support a backend origin without a path", () => {
+    expect(
+      backendUrlWithPath(
+        new URL("http://127.0.0.1:4000"),
+        "/api/v1/integrations/qgis/snapshot",
+      ).toString(),
+    ).toBe("http://127.0.0.1:4000/api/v1/integrations/qgis/snapshot");
+  });
+});
 
 const NOW = new Date("2026-08-24T12:00:00.000Z");
 

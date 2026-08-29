@@ -5,6 +5,7 @@ import {
   isQgisSnapshot,
   type QgisScenario,
 } from "@/lib/qgis";
+import { backendUrlWithPath } from "@/lib/backend-url";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ async function fetchConfiguredBackend(request: NextRequest, scenario: BackendSce
       throw new TypeError("Invalid Catalyst backend URL");
     }
 
-    const backendUrl = new URL(BACKEND_PATH, configuredUrl);
+    const backendUrl = backendUrlWithPath(configuredUrl, BACKEND_PATH);
     backendUrl.searchParams.set("scenario", scenario);
 
     const response = await fetch(backendUrl, {

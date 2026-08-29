@@ -22,9 +22,13 @@ export default defineConfig({
   webServer: [
     {
       name: "Catalyst backend",
-      command: "node src/server.js",
+      command: "npm run dev",
       cwd: "../ic-web-node-catalyst",
       url: "http://127.0.0.1:4000/healthz",
+      env: {
+        NODE_ENV: "test",
+        QGIS_ADAPTER: "fixture",
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
