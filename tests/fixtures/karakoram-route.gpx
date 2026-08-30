@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Catalyst test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="35.2375" lon="74.5892"><ele>8126</ele><name>Nanga Parbat summit</name><type>summit</type></wpt>
+  <trk><name>Karakoram test route</name><trkseg>
+    <trkpt lat="35.2200" lon="74.5700"><ele>7000</ele></trkpt>
+    <trkpt lat="35.2280" lon="74.5780"><ele>7400</ele></trkpt>
+    <trkpt lat="35.2375" lon="74.5892"><ele>8126</ele></trkpt>
+  </trkseg></trk>
+</gpx>

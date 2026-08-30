@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { QgisDemo } from "@/components/qgis-demo";
+import { RoutePlanner } from "@/components/route-planner";
 import { SatelliteExplorer } from "@/components/satellite-explorer";
+import { WeatherPanel } from "@/components/weather-panel";
 
 export const metadata: Metadata = {
-  title: "Satellite & GPS Operations Demo",
+  title: "Expedition Operations Demo",
   description:
-    "Search live Copernicus Sentinel-2 scenes and inspect simulated GPS connection states.",
+    "Inspect live weather, GPX route elevation, Copernicus terrain evidence, satellite scenes, and GPS connection states.",
 };
 
 function DemoFallback() {
@@ -22,6 +24,8 @@ export default function DemoPage() {
   return (
     <>
       <SatelliteExplorer />
+      <WeatherPanel />
+      <RoutePlanner />
       <Suspense fallback={<DemoFallback />}>
         <QgisDemo />
       </Suspense>
