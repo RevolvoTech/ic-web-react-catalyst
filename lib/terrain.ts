@@ -15,7 +15,7 @@ export interface TerrainIntersection {
 export interface TerrainAnalysis {
   schemaVersion: typeof TERRAIN_SCHEMA_VERSION;
   mode: "live";
-  source: { name: "Copernicus DEM"; dataset: "GLO-30" | "GLO-90"; nominalResolutionM: 30 | 90; protocol: "Sentinel Hub Process API" };
+  source: { name: "Copernicus DEM"; dataset: "GLO-30"; nominalResolutionM: 30; protocol: "Sentinel Hub Process API" };
   retrievedAt: string;
   raster: { width: number; height: number; effectiveResolutionM: number; validPixelPercent: number };
   intersections: TerrainIntersection[];
@@ -35,5 +35,5 @@ function intersection(value: unknown): value is TerrainIntersection {
 }
 
 export function isTerrainAnalysis(value: unknown): value is TerrainAnalysis {
-  return record(value) && value.schemaVersion === TERRAIN_SCHEMA_VERSION && value.mode === "live" && record(value.source) && value.source.name === "Copernicus DEM" && ["GLO-30", "GLO-90"].includes(String(value.source.dataset)) && [30, 90].includes(Number(value.source.nominalResolutionM)) && record(value.raster) && typeof value.raster.effectiveResolutionM === "number" && typeof value.raster.validPixelPercent === "number" && Array.isArray(value.intersections) && value.intersections.every(intersection) && typeof value.retrievedAt === "string" && typeof value.notice === "string";
+  return record(value) && value.schemaVersion === TERRAIN_SCHEMA_VERSION && value.mode === "live" && record(value.source) && value.source.name === "Copernicus DEM" && value.source.dataset === "GLO-30" && record(value.raster) && typeof value.raster.effectiveResolutionM === "number" && typeof value.raster.validPixelPercent === "number" && Array.isArray(value.intersections) && value.intersections.every(intersection) && typeof value.retrievedAt === "string" && typeof value.notice === "string";
 }

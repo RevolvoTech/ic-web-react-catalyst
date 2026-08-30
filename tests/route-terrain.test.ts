@@ -32,7 +32,6 @@ describe("route and terrain contracts", () => {
   it("accepts normalized route and terrain evidence", () => {
     expect(isRouteAnalysis(route)).toBe(true);
     expect(isTerrainAnalysis(terrain)).toBe(true);
-    expect(isTerrainAnalysis({ ...terrain, source: { ...terrain.source, dataset: "GLO-90", nominalResolutionM: 90 } })).toBe(true);
   });
 
   it("rejects safety labels and preserves missing values", () => {
