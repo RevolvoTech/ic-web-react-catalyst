@@ -11,7 +11,7 @@
   gap: 1rem;
   overflow: hidden;
   font-family: var(--font-data);
-  font-size: 0.68rem;
+  font-size: var(--text-compact-size);
   font-weight: 750;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -124,7 +124,7 @@
   background: linear-gradient(to top, var(--color-canvas), transparent);
   color: var(--color-text-secondary);
   font-family: var(--font-data);
-  font-size: 0.68rem;
+  font-size: var(--text-compact-size);
 }
 
 .workflow-section {
@@ -260,7 +260,7 @@
 .data-label {
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.67rem;
+  font-size: var(--text-label-size);
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -369,7 +369,7 @@
   background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
   color: var(--color-text-secondary);
   font-family: var(--font-data);
-  font-size: 0.65rem;
+  font-size: var(--text-compact-size);
 }
 
 .map-legend span {
@@ -427,7 +427,7 @@
   margin-top: 0.4rem;
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.68rem;
+  font-size: var(--text-compact-size);
 }
 
 .inspector-grid {
@@ -672,7 +672,7 @@
 .lifecycle-list li > span {
   color: var(--color-action);
   font-family: var(--font-data);
-  font-size: 0.72rem;
+  font-size: var(--text-compact-size);
 }
 
 .lifecycle-list li > div {
@@ -1018,7 +1018,7 @@
 .architecture-flow li > span {
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.7rem;
+  font-size: var(--text-compact-size);
 }
 
 .architecture-flow h3 {
@@ -1064,7 +1064,7 @@
 .source-register__list dt {
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.7rem;
+  font-size: var(--text-compact-size);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1109,7 +1109,7 @@
 
 .contract-version span {
   color: var(--color-text-muted);
-  font-size: 0.65rem;
+  font-size: var(--text-compact-size);
   text-transform: uppercase;
 }
 
@@ -1213,7 +1213,7 @@
   color: var(--color-action);
   content: counter(confirmations, decimal-leading-zero);
   font-family: var(--font-data);
-  font-size: 0.7rem;
+  font-size: var(--text-compact-size);
 }
 
 @media (max-width: 64rem) {

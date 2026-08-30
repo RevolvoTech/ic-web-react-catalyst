@@ -133,6 +133,10 @@ On narrower screens, stack or tab the map and inspector rather than squeezing bo
 
 Design mobile-first and verify at 320, 390, 768, 1024, 1440, and 1920px. Public navigation becomes an accessible drawer below tablet width. Full-bleed sections account for safe-area insets. No layout, marquee, canvas, pinned section, or off-screen transform may create document-level horizontal scrolling.
 
+Laptop density is the baseline at a 16px root size. On normal-height large desktop canvases, scale the complete rem-based system to 17px from 1600px wide and 18px from 2200px wide. This optical scaling is part of the layout contract: it keeps navigation, controls, data labels, and operational panels physically legible on 27-inch QHD displays without changing the reading order or merely stretching containers. Short, wide windows do not opt into the scale increase.
+
+Compact tertiary metadata may use 0.75rem; interface labels and primary operational data use 0.8125rem or larger. Never introduce one-off text below the compact token. At every scale, preserve readable paragraph measure instead of widening prose to fill the canvas.
+
 ## Elevation & Depth
 
 Use flat, layered blacks with thin borders as the primary depth model. Raised controls may add one restrained shadow, but shadows must not replace boundaries or make the interface look glassy. Avoid backdrop blur over operational data.

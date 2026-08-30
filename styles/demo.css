@@ -86,7 +86,7 @@
   background: var(--color-canvas-alternate);
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.64rem;
+  font-size: var(--text-compact-size);
 }
 
 .satellite-query-strip span {
@@ -188,14 +188,14 @@
 }
 
 .satellite-scene-list > button strong {
-  font-size: 0.72rem;
+  font-size: var(--text-compact-size);
 }
 
 .satellite-scene-list > button small {
   margin-top: 0.25rem;
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.61rem;
+  font-size: var(--text-compact-size);
 }
 
 .satellite-scene-list__empty {
@@ -283,7 +283,7 @@
   background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
   color: var(--color-text-secondary);
   font-family: var(--font-data);
-  font-size: 0.62rem;
+  font-size: var(--text-compact-size);
 }
 
 .satellite-inspector__details {
@@ -333,7 +333,7 @@
 
 .satellite-inspector__details dt {
   color: var(--color-text-muted);
-  font-size: 0.65rem;
+  font-size: var(--text-compact-size);
 }
 
 .satellite-inspector__details dd {
@@ -361,7 +361,7 @@
   padding-top: 1rem;
   border-top: 1px solid var(--color-warning);
   color: var(--color-text-secondary);
-  font-size: 0.72rem;
+  font-size: var(--text-compact-size);
 }
 
 .satellite-console__footer {
@@ -445,7 +445,7 @@
 .scenario-switcher button small {
   margin-top: 0.3rem;
   color: var(--color-text-muted);
-  font-size: 0.66rem;
+  font-size: var(--text-compact-size);
   line-height: 1.35;
 }
 
@@ -560,7 +560,7 @@
   background: color-mix(in srgb, var(--color-canvas) 90%, transparent);
   color: var(--color-text-secondary);
   font-family: var(--font-data);
-  font-size: 0.62rem;
+  font-size: var(--text-compact-size);
 }
 
 .qgis-map__label {
@@ -715,7 +715,7 @@
   margin-top: 0.55rem;
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.67rem;
+  font-size: var(--text-compact-size);
 }
 
 .position-data {
@@ -740,7 +740,7 @@
   align-items: center;
   gap: 0.4rem;
   color: var(--color-text-muted);
-  font-size: 0.65rem;
+  font-size: var(--text-compact-size);
 }
 
 .position-data dt svg {
@@ -811,7 +811,7 @@
 .source-block strong,
 .source-block > div > span:last-child {
   overflow-wrap: anywhere;
-  font-size: 0.72rem;
+  font-size: var(--text-compact-size);
 }
 
 .source-block > div > span:last-child {
@@ -834,7 +834,7 @@
   background: var(--color-surface);
   color: var(--color-text-secondary);
   font-family: var(--font-data);
-  font-size: 0.67rem;
+  font-size: var(--text-compact-size);
   max-width: calc(100% - 2rem);
   text-align: center;
 }
@@ -849,7 +849,7 @@
   border-top: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.62rem;
+  font-size: var(--text-compact-size);
 }
 
 .operations-console__footer span {
@@ -890,7 +890,7 @@
 .track-list > div > span {
   color: var(--color-action);
   font-family: var(--font-data);
-  font-size: 0.68rem;
+  font-size: var(--text-compact-size);
 }
 
 .track-list dl {
@@ -908,7 +908,7 @@
 
 .track-list dt {
   color: var(--color-text-muted);
-  font-size: 0.62rem;
+  font-size: var(--text-compact-size);
 }
 
 .track-list dd {

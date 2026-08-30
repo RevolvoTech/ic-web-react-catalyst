@@ -24,6 +24,8 @@
   --font-display: "Outfit Variable", "Arial Black", sans-serif;
   --font-body: var(--font-geist-sans), "Segoe UI", sans-serif;
   --font-data: var(--font-geist-mono), "SFMono-Regular", Consolas, monospace;
+  --text-compact-size: 0.75rem;
+  --text-label-size: 0.8125rem;
   --radius-control: 4px;
   --radius-panel: 8px;
   --radius-round: 999px;
@@ -465,7 +467,7 @@ textarea,
   border-top: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.72rem;
+  font-size: var(--text-compact-size);
 }
 
 .editorial-hero {
@@ -486,6 +488,7 @@ textarea,
   z-index: -3;
   object-fit: cover;
   object-position: center;
+  animation: hero-image-enter var(--motion-hero) var(--ease-enter) backwards;
 }
 
 .editorial-hero--home .editorial-hero__image {
@@ -585,7 +588,7 @@ textarea,
   align-items: flex-end;
   color: var(--color-text-muted);
   font-family: var(--font-data);
-  font-size: 0.65rem;
+  font-size: var(--text-compact-size);
   letter-spacing: 0.08em;
 }
 
@@ -610,7 +613,7 @@ textarea,
   border-radius: var(--radius-round);
   color: var(--color-unknown);
   font-family: var(--font-data);
-  font-size: 0.68rem;
+  font-size: var(--text-compact-size);
   font-weight: 700;
   letter-spacing: 0.06em;
   line-height: 1;
@@ -690,6 +693,33 @@ textarea,
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes hero-image-enter {
+  from {
+    transform: scale(1.012);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+/*
+ * Preserve the established laptop density, then increase the physical scale of
+ * the complete interface on large desktop canvases. Width and height gates
+ * avoid inflating short, wide browser windows.
+ */
+@media (min-width: 100rem) and (min-height: 50rem) {
+  html {
+    font-size: 106.25%;
+  }
+}
+
+@media (min-width: 137.5rem) and (min-height: 56.25rem) {
+  html {
+    font-size: 112.5%;
   }
 }
 

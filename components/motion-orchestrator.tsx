@@ -211,7 +211,9 @@ export function MotionOrchestrator() {
     const observers: IntersectionObserver[] = [];
     const animations: Array<{ cancel: () => void }> = [];
     const observedTriggers = revealRules.map(() => new WeakSet<HTMLElement>());
-    const mutationObserver = new MutationObserver(() => scanForTriggers());
+    let mutationObserver: MutationObserver | null = null;
+    let firstFrame = 0;
+    let secondFrame = 0;
 
     const registerTrigger = (rule: RevealRule, trigger: HTMLElement, triggerIndex: number) => {
       const targets = rule.targets
@@ -303,11 +305,27 @@ export function MotionOrchestrator() {
       });
     };
 
-    scanForTriggers();
-    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    const start = () => {
+      firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => {
+          scanForTriggers();
+          mutationObserver = new MutationObserver(() => scanForTriggers());
+          mutationObserver.observe(document.body, { childList: true, subtree: true });
+        });
+      });
+    };
+
+    if (document.readyState === "complete") {
+      start();
+    } else {
+      window.addEventListener("load", start, { once: true });
+    }
 
     return () => {
-      mutationObserver.disconnect();
+      window.removeEventListener("load", start);
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      mutationObserver?.disconnect();
       observers.forEach((observer) => observer.disconnect());
       animations.forEach((animation) => animation.cancel());
       clearRevealStyles();

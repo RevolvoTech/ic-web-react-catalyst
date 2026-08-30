@@ -22,6 +22,16 @@ and have that data appear correctly in the command view.
 The product is decision support. It must never claim a route is **SAFE** or
 **UNSAFE**, hide stale data, or present missing data as current.
 
+## Current Delivery Sequence
+
+1. **Frontend layout lock:** reconcile the implementation with `DESIGN.md`, verify
+   the public and command surfaces across mobile, tablet, laptop, Full HD, and
+   27-inch QHD viewports, then freeze the shared responsive scale and layout rules.
+2. **Supabase foundation — next, not started:** provision Supabase PostgreSQL,
+   enable PostGIS, add the first versioned migrations and role-aware access model,
+   then connect Catalyst through the backend API. Browser code must not receive a
+   service-role key or bypass the backend for operational writes.
+
 ## Catalyst Milestone 1 — Website and GIS
 
 > Current satellite architecture and required pilot inputs are recorded in
