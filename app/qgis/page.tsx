@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowDown, ArrowRight, CircleAlert, Database, Laptop, Satellite, Server } from "lucide-react";
+import { ArrowDown, ArrowRight, Database, Laptop, Satellite, Server } from "lucide-react";
 import Link from "next/link";
 import { EditorialHero } from "@/components/editorial-hero";
 import { StatusBadge } from "@/components/status-badge";
@@ -44,10 +44,10 @@ export default function GisPage() {
           <h2 id="integration-status-title">Real scene metadata now crosses the Catalyst backend boundary.</h2>
           <p>Public Sentinel-2 discovery works without a token. Processed true-colour images use the same provider-neutral contract and activate when Copernicus OAuth credentials are stored on the backend—not in the browser.</p>
         </div>
-        <div className="integration-status__alert">
-          <CircleAlert aria-hidden="true" />
-          <div><strong>Decision support, not a safety declaration</strong><p>Satellite imagery can be delayed, obscured, incomplete, or lower resolution than a field decision requires.</p></div>
-        </div>
+        <aside className="integration-status__note" aria-label="Planning note">
+          <p className="eyebrow">Planning note</p>
+          <p>Satellite imagery supports planning and should be verified against current field conditions.</p>
+        </aside>
       </section>
 
       <section className="architecture-section">
