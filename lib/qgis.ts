@@ -325,7 +325,7 @@ export function createSimulatedSnapshot(
       team: "Rope Team A",
     },
     source: {
-      name: "Catalyst QGIS fixture",
+      name: "Catalyst GPS simulation",
       adapter: "website-local-fixture-adapter",
       project: null,
       repository: null,
@@ -346,10 +346,10 @@ export function createSimulatedSnapshot(
     track,
     notice:
       scenario === "empty"
-        ? "The simulated source is connected but has not supplied a position."
+        ? "Connected and waiting for a simulated position."
         : scenario === "unavailable"
-          ? "No QGIS source is configured for this environment."
-          : "Demonstration fixture only. This is not a live QGIS integration.",
+          ? "No position source is connected."
+          : "Simulated GPS data for interface preview.",
   };
 }
 

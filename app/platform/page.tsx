@@ -77,11 +77,11 @@ export default function PlatformPage() {
           <article className="environment-panel environment-panel--field">
             <div className="environment-panel__number">02</div>
             <Smartphone aria-hidden="true" />
-            <p className="eyebrow">Offline mobile · Later project</p>
+            <p className="eyebrow">Planned field app</p>
             <h3>Carry and record.</h3>
             <p>
-              The required React Native application belongs in a separate repository. This web
-              build keeps its contracts ready without pretending that mobile work has started.
+              A companion mobile experience will carry published plans, record positions and
+              reports offline, and synchronize after reconnection.
             </p>
             <ul className="plain-list">
               <li>Downloaded operational plan</li>
@@ -175,7 +175,7 @@ export default function PlatformPage() {
           </div>
           <div className="state-stack" aria-label="Example operational states">
             <div><StatusBadge tone="information">Live</StatusBadge><span>Verified live source and freshness window</span></div>
-            <div><StatusBadge tone="simulated">Simulated</StatusBadge><span>Fixture or demonstration data</span></div>
+            <div><StatusBadge tone="simulated">Simulated</StatusBadge><span>Generated demonstration data</span></div>
             <div><StatusBadge tone="warning">Stale</StatusBadge><span>Older than its declared freshness threshold</span></div>
             <div><StatusBadge tone="unknown">Offline</StatusBadge><span>Connection lost; last-known may remain</span></div>
             <div><StatusBadge tone="critical">Unavailable</StatusBadge><span>No usable source or position</span></div>
@@ -186,12 +186,12 @@ export default function PlatformPage() {
       <section className="scope-section shell">
         <div>
           <CircleAlert aria-hidden="true" />
-          <p className="eyebrow">Pilot boundary</p>
+          <p className="eyebrow">Product scope</p>
           <h2>Focused now. Extensible later.</h2>
         </div>
         <div className="scope-columns">
           <div>
-            <h3>Core pilot</h3>
+            <h3>Core capabilities</h3>
             <p>Planning, route context, satellite intelligence, weather, team state, reports, command awareness, and advisory alerts.</p>
           </div>
           <div>
@@ -203,8 +203,8 @@ export default function PlatformPage() {
 
       <section className="simple-cta shell">
         <p className="eyebrow">Next view</p>
-        <h2>See the GIS boundary in detail.</h2>
-        <p>Review the live Copernicus catalogue, provider-neutral contract, and the inputs needed for processed imagery.</p>
+        <h2>Explore GIS and satellite data.</h2>
+        <p>Review live Copernicus scenes, source details, cloud cover, and resolution.</p>
         <Link className="button button--primary" href="/qgis">
           Review GIS & Satellite <ArrowRight aria-hidden="true" />
         </Link>

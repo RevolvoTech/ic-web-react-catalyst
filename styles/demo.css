@@ -863,15 +863,13 @@
   padding-block: clamp(6rem, 11vw, 11rem);
 }
 
-.track-section__intro h2,
-.demo-disclosure h2 {
+.track-section__intro h2 {
   margin-bottom: 1.25rem;
   font-size: clamp(2.25rem, 1.5rem + 3vw, 4.5rem);
   line-height: 0.95;
 }
 
-.track-section__intro > p:not(.eyebrow),
-.demo-disclosure > div > p:not(.eyebrow) {
+.track-section__intro > p:not(.eyebrow) {
   color: var(--color-text-secondary);
 }
 
@@ -940,25 +938,6 @@
 
 .track-list__empty p {
   font-size: 0.78rem;
-}
-
-.demo-disclosure {
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr);
-  gap: clamp(1.5rem, 4vw, 3rem);
-  margin-bottom: clamp(6rem, 11vw, 11rem);
-  padding-block: clamp(3rem, 6vw, 5rem);
-  border-block: 1px solid var(--color-warning);
-}
-
-.demo-disclosure > svg {
-  width: 2.25rem;
-  height: 2.25rem;
-  color: var(--color-warning);
-}
-
-.demo-disclosure > div {
-  max-width: 58rem;
 }
 
 .demo-fallback {
@@ -1095,9 +1074,6 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .demo-disclosure {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 28rem) {

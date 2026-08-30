@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const websitePort = process.env.PLAYWRIGHT_WEBSITE_PORT ?? "3000";
+const websiteUrl = `http://127.0.0.1:${websitePort}`;
+
 export default defineConfig({
   testDir: "./tests",
   testMatch: "**/*.spec.ts",
@@ -9,7 +12,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: websiteUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -34,8 +37,8 @@ export default defineConfig({
     },
     {
       name: "Catalyst website",
-      command: "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
-      url: "http://127.0.0.1:3000",
+      command: `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${websitePort}`,
+      url: websiteUrl,
       env: {
         CATALYST_BACKEND_URL: "http://127.0.0.1:4000",
       },

@@ -16,7 +16,7 @@ function error(message: string, status: number) {
 
 export async function GET(request: NextRequest) {
   const configuredBase = process.env.CATALYST_BACKEND_URL;
-  if (!configuredBase) return error("The Catalyst backend is not configured for this website.", 503);
+  if (!configuredBase) return error("Satellite data is temporarily unavailable.", 503);
 
   for (const parameter of ALLOWED_PARAMETERS) {
     if (request.nextUrl.searchParams.getAll(parameter).length > 1) {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     const baseUrl = new URL(configuredBase);
     if (!["http:", "https:"].includes(baseUrl.protocol) || baseUrl.username || baseUrl.password) {
-      return error("The Catalyst backend URL is invalid.", 503);
+      return error("Satellite data is temporarily unavailable.", 503);
     }
 
     const backendUrl = backendUrlWithPath(baseUrl, BACKEND_PATH);
@@ -51,13 +51,13 @@ export async function GET(request: NextRequest) {
       );
     }
     if (!isSatelliteCatalog(payload)) {
-      return error("The Catalyst backend returned an invalid satellite catalogue.", 502);
+      return error("The satellite service returned an unexpected response.", 502);
     }
 
     return NextResponse.json(payload, {
       headers: { "Cache-Control": "private, max-age=60" },
     });
   } catch {
-    return error("The Catalyst backend or Copernicus catalogue is currently unreachable.", 502);
+    return error("The satellite catalogue is currently unreachable.", 502);
   }
 }

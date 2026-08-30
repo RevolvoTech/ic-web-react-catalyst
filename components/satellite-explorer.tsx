@@ -97,7 +97,7 @@ export function SatelliteExplorer() {
       });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Satellite catalogue request failed.");
-      if (!isSatelliteCatalog(payload)) throw new Error("Catalyst returned an invalid satellite catalogue.");
+      if (!isSatelliteCatalog(payload)) throw new Error("The satellite service returned an unexpected response.");
       setCatalog(payload);
       setSelectedId((current) =>
         current && payload.scenes.some((scene) => scene.id === current)
@@ -173,7 +173,7 @@ export function SatelliteExplorer() {
             {catalog ? "Live catalogue" : catalogError ? "Unavailable" : "Connecting"}
           </StatusBadge>
           <p>
-            Catalyst searches the public Copernicus Sentinel-2 catalogue through its backend.
+            Catalyst searches the live Copernicus Sentinel-2 catalogue.
             Imagery supports planning and awareness; it does not prove route or hazard safety.
           </p>
         </div>
@@ -182,11 +182,10 @@ export function SatelliteExplorer() {
       <section className="satellite-console shell" aria-labelledby="satellite-console-title">
         <header className="satellite-console__header">
           <div>
-            <span className="data-label">Development area of interest</span>
+            <span className="data-label">Area of interest</span>
             <h2 id="satellite-console-title">Karakoram pilot · Sentinel-2 L2A</h2>
           </div>
           <div className="satellite-console__status" aria-live="polite">
-            <StatusBadge tone="information">20–50 m MVP target</StatusBadge>
             <button className="button button--secondary" type="button" onClick={() => void loadCatalog()} disabled={loading}>
               <RefreshCw aria-hidden="true" /> {loading ? "Searching…" : "Refresh scenes"}
             </button>
@@ -253,7 +252,7 @@ export function SatelliteExplorer() {
                   </button>
                   {renderState === "unavailable" ? (
                     <p className="satellite-render-note" role="status">
-                      Processed imagery is ready in code and will activate after Copernicus OAuth credentials are added to the backend.
+                      Processed imagery is unavailable for this scene. Select another scene or try again.
                     </p>
                   ) : null}
                 </div>
@@ -269,8 +268,8 @@ export function SatelliteExplorer() {
         </div>
 
         <footer className="operations-console__footer satellite-console__footer">
-          <span>Schema: {catalog?.schemaVersion ?? "catalyst.satellite.catalog.v1"}</span>
           <span>Source: {catalog?.source.name ?? "Copernicus Data Space Ecosystem"}</span>
+          <span>Collection: Sentinel-2 Level-2A</span>
           <span>{catalog ? `Retrieved ${formatSceneDate(catalog.retrievedAt)}` : "Freshness unavailable"}</span>
         </footer>
       </section>

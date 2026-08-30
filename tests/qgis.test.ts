@@ -151,7 +151,7 @@ describe("simulated QGIS snapshots", () => {
     });
     expect(snapshot.position).toBeNull();
     expect(snapshot.track).toEqual([]);
-    expect(snapshot.notice).toContain("No QGIS source is configured");
+    expect(snapshot.notice).toContain("No position source is connected");
   });
 
   it("represents a connected but empty source without zero-value data", () => {
@@ -164,14 +164,14 @@ describe("simulated QGIS snapshots", () => {
     expect(snapshot.freshness).toBe("unknown");
     expect(snapshot.position).toBeNull();
     expect(snapshot.track).toEqual([]);
-    expect(snapshot.notice).toContain("has not supplied a position");
+    expect(snapshot.notice).toContain("waiting for a simulated position");
   });
 
   it("keeps unverified source metadata nullable instead of inventing values", () => {
     const snapshot = createSimulatedSnapshot("current", NOW);
 
     expect(snapshot.source).toEqual({
-      name: "Catalyst QGIS fixture",
+      name: "Catalyst GPS simulation",
       adapter: "website-local-fixture-adapter",
       project: null,
       repository: null,

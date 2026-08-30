@@ -15,7 +15,7 @@ function error(message: string, status: number) {
 
 export async function GET(request: NextRequest) {
   const configuredBase = process.env.CATALYST_BACKEND_URL;
-  if (!configuredBase) return error("The Catalyst backend is not configured for this website.", 503);
+  if (!configuredBase) return error("Processed imagery is temporarily unavailable.", 503);
 
   for (const parameter of ALLOWED_PARAMETERS) {
     if (request.nextUrl.searchParams.getAll(parameter).length > 1) {
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   try {
     const baseUrl = new URL(configuredBase);
     if (!["http:", "https:"].includes(baseUrl.protocol) || baseUrl.username || baseUrl.password) {
-      return error("The Catalyst backend URL is invalid.", 503);
+      return error("Processed imagery is temporarily unavailable.", 503);
     }
     const backendUrl = backendUrlWithPath(baseUrl, BACKEND_PATH);
     for (const parameter of ALLOWED_PARAMETERS) {
@@ -42,13 +42,13 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       return error(
         response.status === 503
-          ? "Processed imagery needs Copernicus OAuth credentials on the Catalyst backend."
+          ? "Processed imagery is temporarily unavailable."
           : "The requested satellite image could not be rendered.",
         response.status === 503 ? 503 : response.status === 400 || response.status === 404 ? response.status : 502,
       );
     }
     if (!(response.headers.get("content-type") ?? "").toLowerCase().startsWith("image/png")) {
-      return error("The Catalyst backend returned an invalid satellite image.", 502);
+      return error("The satellite service returned an unexpected image response.", 502);
     }
 
     return new NextResponse(await response.arrayBuffer(), {

@@ -161,7 +161,7 @@ export default function HomePage() {
             </div>
             <div className="command-frame__badges">
               <StatusBadge tone="simulated">Simulated</StatusBadge>
-              <StatusBadge tone="information">Current fixture</StatusBadge>
+              <StatusBadge tone="information">Current</StatusBadge>
             </div>
           </div>
           <div className="command-frame__body">
@@ -177,7 +177,7 @@ export default function HomePage() {
               <div className="inspector-block">
                 <span className="data-label">Latest position received</span>
                 <strong>1 min ago</strong>
-                <span>Fixture timestamp</span>
+                <span>Simulated timestamp</span>
               </div>
               <div className="inspector-grid">
                 <div>
@@ -194,7 +194,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <span className="data-label">Source</span>
-                  <strong>Fixture</strong>
+                  <strong>Simulation</strong>
                 </div>
               </div>
               <p className="inspector-note">

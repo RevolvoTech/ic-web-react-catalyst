@@ -65,12 +65,10 @@ async function selectScenario(page: Page, label: string, state: string) {
 }
 
 async function expectSimulatedDisclosure(page: Page) {
-  await expect(page.getByText("Simulated only", { exact: true })).toBeVisible();
+  await expect(page.locator(".demo-intro__copy").getByText("Simulated", { exact: true })).toBeVisible();
   await expect(consoleStatuses(page).getByText("Simulated", { exact: true })).toBeVisible();
   await expect(consoleStatuses(page).getByText("Live", { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByText(/UI state test—not verified live tracker data—and must not be used for field decisions/i),
-  ).toBeVisible();
+  await expect(page.getByText(/This is not live tracker data/i)).toBeVisible();
 }
 
 test.describe("route structure", () => {
@@ -157,7 +155,7 @@ test.describe("QGIS demo state lab", () => {
   }) => {
     await waitForCurrentFixture(page);
     await selectScenario(page, "Stale", "stale");
-    await selectScenario(page, "Current fixture", "current");
+    await selectScenario(page, "Current", "current");
     await expectSimulatedDisclosure(page);
 
     const inspector = page.getByRole("complementary", { name: "GPS position inspector" });
@@ -170,10 +168,10 @@ test.describe("QGIS demo state lab", () => {
     await expect(inspector.getByText(/^\d+ min ago$/)).toBeVisible();
     await expect(inspector.getByText("Accuracy", { exact: true })).toBeVisible();
     await expect(inspector.getByText("±12 m", { exact: true })).toBeVisible();
-    await expect(inspector.getByText("Catalyst QGIS fixture", { exact: true })).toBeVisible();
-    await expect(inspector.getByText("Via fixture-qgis-adapter", { exact: true })).toBeVisible();
-    await expect(page.getByText("Fixture planned route", { exact: true })).toBeVisible();
-    await expect(page.getByText("Schema: catalyst.qgis.snapshot.v1", { exact: true })).toBeVisible();
+    await expect(inspector.getByText("Catalyst GPS simulation", { exact: true })).toBeVisible();
+    await expect(inspector.getByText("Generated for demonstration", { exact: true })).toBeVisible();
+    await expect(page.getByText("Planned route", { exact: true })).toBeVisible();
+    await expect(page.getByText("Coordinates: WGS84", { exact: true })).toBeVisible();
   });
 
   test("switches to stale data and keeps the last-known fix visible", async ({ page }) => {
@@ -206,7 +204,7 @@ test.describe("QGIS demo state lab", () => {
     await expect(consoleStatuses(page).getByText("Unknown", { exact: true })).toBeVisible();
     await expect(page.getByRole("status").getByText("No position received", { exact: true })).toBeVisible();
     await expect(
-      page.getByText("The simulated QGIS source is connected but has not supplied a position.", {
+      page.getByText("Connected and waiting for a simulated position.", {
         exact: true,
       }),
     ).toBeVisible();
@@ -221,8 +219,8 @@ test.describe("QGIS demo state lab", () => {
     await expect(consoleStatuses(page).getByText("Error", { exact: true })).toBeVisible();
     const alert = page.getByRole("alert").filter({ hasText: "Position refresh failed" });
     await expect(alert.getByText("Position refresh failed", { exact: true })).toBeVisible();
-    await expect(alert).toContainText("The simulated QGIS adapter rejected this request.");
-    await expect(alert).toContainText("The previous fixture remains visible below.");
+    await expect(alert).toContainText("Position data is temporarily unavailable.");
+    await expect(alert).toContainText("The previous position remains visible below.");
     await expect(
       page
         .getByRole("complementary", { name: "GPS position inspector" })
@@ -238,7 +236,7 @@ test.describe("QGIS demo state lab", () => {
     await expect(consoleStatuses(page).getByText("Unavailable", { exact: true })).toBeVisible();
     await expect(page.getByText("Position unavailable", { exact: true })).toBeVisible();
     await expect(
-      page.getByText("No QGIS source is configured for this environment.", { exact: true }),
+      page.getByText("No position source is connected.", { exact: true }),
     ).toBeVisible();
     await expect(page.getByText("No recent track points", { exact: true })).toBeVisible();
   });
@@ -500,14 +498,13 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
     {
       path: "/qgis",
       top: ".editorial-hero",
-      replayTarget: ".confirmation-list > ol > li:last-child",
+      replayTarget: ".contract-fields > div:last-child",
       covered: [
         ".integration-status > div",
         ".architecture-flow > li",
         ".architecture-flow__arrow",
         ".source-register__list > div",
         ".contract-fields > div",
-        ".confirmation-list > ol > li",
       ],
     },
     {
@@ -521,7 +518,6 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
         ".position-inspector",
         ".operations-console__footer > span",
         ".track-list > div",
-        ".demo-disclosure > *",
       ],
     },
   ] as const;

@@ -284,11 +284,11 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
       />
       <div className="qgis-map__grid" aria-hidden="true" />
       <div className="qgis-map__label">
-        <span>{snapshot?.mode === "live" ? "Normalized position plot" : "Catalyst fixture geometry"}</span>
-        <span>{snapshot?.mode === "live" ? "No route geometry supplied" : "No third-party basemap"}</span>
+        <span>{snapshot?.mode === "live" ? "Position plot" : "Simulated route geometry"}</span>
+        <span>{snapshot?.mode === "live" ? "No route geometry supplied" : "Route context only"}</span>
       </div>
       <div className="qgis-map__legend" aria-label="Map legend">
-        {snapshot?.mode !== "live" ? <span><i data-kind="planned" /> Fixture planned route</span> : null}
+        {snapshot?.mode !== "live" ? <span><i data-kind="planned" /> Planned route</span> : null}
         <span><i data-kind="actual" /> Recent track</span>
         <span><i data-kind="position" /> Latest position</span>
       </div>

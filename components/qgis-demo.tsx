@@ -34,12 +34,12 @@ const scenarios: ReadonlyArray<{
   label: string;
   description: string;
 }> = [
-  { id: "current", label: "Current fixture", description: "Recent simulated position and track" },
+  { id: "current", label: "Current", description: "Recent simulated position and track" },
   { id: "stale", label: "Stale", description: "Last fix outside freshness threshold" },
   { id: "offline", label: "Offline", description: "Connection lost with last-known data" },
   { id: "empty", label: "Empty", description: "Connected source with no position yet" },
-  { id: "error", label: "Error", description: "Backend request fails safely" },
-  { id: "unavailable", label: "Unavailable", description: "No upstream source configured" },
+  { id: "error", label: "Error", description: "Position request is unavailable" },
+  { id: "unavailable", label: "Unavailable", description: "No position source connected" },
 ];
 
 const freshnessTone: Record<QgisFreshness, "information" | "warning" | "critical" | "unknown"> = {
@@ -76,6 +76,14 @@ function responseErrorMessage(value: unknown) {
     return error.message;
   }
   return null;
+}
+
+function displayedNotice(snapshot: QgisSnapshot | null) {
+  if (!snapshot) return "Waiting for position data…";
+  if (snapshot.mode === "live") return snapshot.notice ?? "Position data received.";
+  if (snapshot.scenario === "empty") return "Connected and waiting for a simulated position.";
+  if (snapshot.scenario === "unavailable") return "No position source is connected.";
+  return "Simulated GPS data for interface preview.";
 }
 
 function formatTimestamp(value: string) {
@@ -146,14 +154,14 @@ export function QgisDemo() {
     <div className="demo-experience">
       <section className="demo-intro demo-intro--secondary shell">
         <div>
-          <p className="eyebrow">GPS connection state lab</p>
+          <p className="eyebrow">GPS state preview</p>
           <h2>Read the position.<br /><em>Judge the signal.</em></h2>
         </div>
         <div className="demo-intro__copy">
-          <StatusBadge tone="simulated">Simulated only</StatusBadge>
+          <StatusBadge tone="simulated">Simulated</StatusBadge>
           <p>
-            This map receives normalized GPS fixtures through the Catalyst backend route. It is a
-            UI state test—not verified live tracker data—and must not be used for field decisions.
+            Explore how current, stale, offline, empty, and unavailable position states appear in
+            the command view. This is not live tracker data.
           </p>
         </div>
       </section>
@@ -161,7 +169,7 @@ export function QgisDemo() {
       <section className="scenario-section shell" aria-labelledby="scenario-title">
         <div className="scenario-section__heading">
           <p id="scenario-title" className="data-label">Select a data condition</p>
-          <p>URL state updates so each condition can be shared and revisited.</p>
+          <p>Choose a condition to update the console.</p>
         </div>
         <div className="scenario-switcher" role="group" aria-labelledby="scenario-title">
           {scenarios.map((item) => (
@@ -217,10 +225,10 @@ export function QgisDemo() {
             <AlertTriangle aria-hidden="true" />
             <div>
               <strong>Position refresh failed</strong>
-              <p>{error} {snapshot ? "The previous fixture remains visible below." : "No position is available."}</p>
+              <p>{error} {snapshot ? "The previous position remains visible below." : "No position is available."}</p>
             </div>
             <button className="button button--secondary" type="button" onClick={() => selectScenario("current")}>
-              <RefreshCw aria-hidden="true" /> Load current fixture
+              <RefreshCw aria-hidden="true" /> Load current state
             </button>
             </m.div>
           ) : null}
@@ -277,7 +285,7 @@ export function QgisDemo() {
               <div className="position-empty" role="status">
                 {snapshot?.freshness === "unavailable" ? <WifiOff aria-hidden="true" /> : <Satellite aria-hidden="true" />}
                 <strong>{snapshot?.freshness === "unavailable" ? "Position unavailable" : "No position received"}</strong>
-                <p>{snapshot?.notice ?? "Waiting for the Catalyst backend fixture…"}</p>
+                <p>{displayedNotice(snapshot)}</p>
               </div>
             )}
 
@@ -285,8 +293,8 @@ export function QgisDemo() {
               <Database aria-hidden="true" />
               <div>
                 <span className="data-label">Source</span>
-                <strong>{snapshot?.source.name ?? "Catalyst QGIS fixture"}</strong>
-                <span>Via {snapshot?.source.adapter ?? "adapter pending"}</span>
+                <strong>{snapshot?.mode === "live" ? snapshot.source.name : "Catalyst GPS simulation"}</strong>
+                <span>{snapshot?.mode === "live" ? "Connected source" : "Generated for demonstration"}</span>
               </div>
             </div>
           </aside>
@@ -311,9 +319,9 @@ export function QgisDemo() {
         </div>
 
         <footer className="operations-console__footer">
-          <span>Schema: {snapshot?.schemaVersion ?? "catalyst.qgis.snapshot.v1"}</span>
-          <span>Map attribution: MapLibre GL JS · Catalyst fixture geometry</span>
-          <span>No production tile source configured</span>
+          <span>Position data: {snapshot?.mode === "live" ? "Live" : "Simulated"}</span>
+          <span>Map: MapLibre GL JS</span>
+          <span>Coordinates: WGS84</span>
         </footer>
       </section>
 
@@ -321,10 +329,7 @@ export function QgisDemo() {
         <div className="track-section__intro">
           <p className="eyebrow">Recent track</p>
           <h2>Every point keeps its own time.</h2>
-          <p>
-            Track order and timestamps are preserved rather than inferred from the time the browser
-            received the response.
-          </p>
+          <p>Each point retains its recorded time, altitude, and coordinates.</p>
         </div>
         <div className="track-list" role="list" aria-label="Five most recent simulated track points">
           {recentTrack.length ? (
@@ -351,17 +356,6 @@ export function QgisDemo() {
         </div>
       </section>
 
-      <aside className="demo-disclosure shell">
-        <AlertTriangle aria-hidden="true" />
-        <div>
-          <p className="eyebrow">Integration limitation</p>
-          <h2>Simulation proves interface behavior—not upstream compatibility.</h2>
-          <p>
-            Live completion requires the client&apos;s chosen GPS device or tracking feed, representative
-            data, a production adapter, and an accepted end-to-end field test.
-          </p>
-        </div>
-      </aside>
     </div>
   );
 }

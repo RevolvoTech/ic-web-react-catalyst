@@ -6,7 +6,7 @@ import { SatelliteExplorer } from "@/components/satellite-explorer";
 export const metadata: Metadata = {
   title: "Satellite & GPS Operations Demo",
   description:
-    "Search live Copernicus Sentinel-2 scenes and inspect simulated GPS connection states through the Catalyst backend boundary.",
+    "Search live Copernicus Sentinel-2 scenes and inspect simulated GPS connection states.",
 };
 
 function DemoFallback() {

@@ -130,12 +130,6 @@ const revealRules: RevealRule[] = [
     cascade: 0.055,
     distance: 16,
   },
-  { trigger: ".confirmation-list > div:first-child", targets: ":scope > *" },
-  {
-    trigger: ".confirmation-list > ol > li",
-    cascade: 0.045,
-    distance: 14,
-  },
   { trigger: ".simple-cta", targets: ":scope > *", stagger: 0.07 },
 
   // Satellite and GPS demo
@@ -178,8 +172,6 @@ const revealRules: RevealRule[] = [
     cascade: 0.045,
     distance: 14,
   },
-  { trigger: ".demo-disclosure", targets: ":scope > *", distance: 14 },
-
   // Shared footer and fallback page
   {
     trigger: ".site-footer__grid > *",

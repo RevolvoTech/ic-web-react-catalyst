@@ -90,16 +90,24 @@ async function fetchConfiguredBackend(request: NextRequest, scenario: BackendSce
         const errorPayload: unknown = await response.json();
         const safeErrorPayload = safeBackendErrorPayload(errorPayload);
         if (safeErrorPayload) {
-          return NextResponse.json(safeErrorPayload, {
-            status: response.status,
-            headers: { "Cache-Control": "no-store" },
-          });
+          return NextResponse.json(
+            {
+              error: {
+                ...safeErrorPayload.error,
+                message: "Position data is temporarily unavailable.",
+              },
+            },
+            {
+              status: response.status,
+              headers: { "Cache-Control": "no-store" },
+            },
+          );
         }
       }
 
       return NextResponse.json(
         {
-          error: "The configured Catalyst backend did not return QGIS data.",
+          error: "Position data is temporarily unavailable.",
           status: response.status,
         },
         { status: 502, headers: { "Cache-Control": "no-store" } },
@@ -108,7 +116,7 @@ async function fetchConfiguredBackend(request: NextRequest, scenario: BackendSce
 
     if (!isJsonResponse(response)) {
       return NextResponse.json(
-        { error: "The configured Catalyst backend returned a non-JSON QGIS response." },
+        { error: "The position service returned an unexpected response." },
         { status: 502, headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -116,7 +124,7 @@ async function fetchConfiguredBackend(request: NextRequest, scenario: BackendSce
     const payload: unknown = await response.json();
     if (!isQgisSnapshot(payload)) {
       return NextResponse.json(
-        { error: "The configured Catalyst backend returned an invalid QGIS snapshot." },
+        { error: "Position data is temporarily unavailable." },
         { status: 502, headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -126,7 +134,7 @@ async function fetchConfiguredBackend(request: NextRequest, scenario: BackendSce
     });
   } catch {
     return NextResponse.json(
-      { error: "The configured Catalyst backend is invalid or currently unreachable." },
+      { error: "The position service is currently unreachable." },
       { status: 502, headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -174,7 +182,7 @@ export async function GET(request: NextRequest) {
       {
         error: {
           code: "SIMULATED_QGIS_ERROR",
-          message: "The simulated QGIS adapter rejected this request.",
+          message: "Position data is unavailable for this simulation.",
           requestId: requestIdForBackend(request),
         },
       },
