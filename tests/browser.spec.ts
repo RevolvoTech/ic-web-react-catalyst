@@ -13,12 +13,12 @@ const routes = [
   },
   {
     path: "/qgis",
-    h1: /Position data,\s+without false certainty\./i,
-    currentNavigationItem: "QGIS Integration",
+    h1: /Geography,\s+without vendor lock-in\./i,
+    currentNavigationItem: "GIS & Satellite",
   },
   {
     path: "/demo",
-    h1: /Read the position\.\s+Judge the signal\./i,
+    h1: /See the terrain\.\s+Know the source\./i,
     currentNavigationItem: null,
   },
 ] as const;
@@ -69,7 +69,7 @@ async function expectSimulatedDisclosure(page: Page) {
   await expect(consoleStatuses(page).getByText("Simulated", { exact: true })).toBeVisible();
   await expect(consoleStatuses(page).getByText("Live", { exact: true })).toHaveCount(0);
   await expect(
-    page.getByText(/does not connect to a verified live QGIS source and must not be used for field decisions/i),
+    page.getByText(/UI state test—not verified live tracker data—and must not be used for field decisions/i),
   ).toBeVisible();
 }
 
@@ -107,7 +107,7 @@ test.describe("route structure", () => {
         navigation.getByRole("link", { name: "Platform", exact: true }),
       ).toHaveAttribute("href", "/platform");
       await expect(
-        navigation.getByRole("link", { name: "QGIS Integration", exact: true }),
+        navigation.getByRole("link", { name: "GIS & Satellite", exact: true }),
       ).toHaveAttribute("href", "/qgis");
 
       const currentLinks = navigation.locator('[aria-current="page"]');
@@ -160,7 +160,7 @@ test.describe("QGIS demo state lab", () => {
     await selectScenario(page, "Current fixture", "current");
     await expectSimulatedDisclosure(page);
 
-    const inspector = page.getByRole("complementary", { name: "QGIS position inspector" });
+    const inspector = page.getByRole("complementary", { name: "GPS position inspector" });
     await expect(inspector.getByText("Latest position received", { exact: true })).toBeVisible();
     await expect(inspector.locator("time")).toHaveCount(1);
     await expect(inspector.locator("time")).toHaveAttribute(
@@ -182,7 +182,7 @@ test.describe("QGIS demo state lab", () => {
     await expectSimulatedDisclosure(page);
 
     await expect(consoleStatuses(page).getByText("Stale", { exact: true })).toBeVisible();
-    const inspector = page.getByRole("complementary", { name: "QGIS position inspector" });
+    const inspector = page.getByRole("complementary", { name: "GPS position inspector" });
     await expect(inspector.getByText(/^\d+ min ago$/)).toBeVisible();
     await expect(inspector.getByText("±12 m", { exact: true })).toBeVisible();
   });
@@ -193,7 +193,7 @@ test.describe("QGIS demo state lab", () => {
     await expectSimulatedDisclosure(page);
 
     await expect(consoleStatuses(page).getByText("Offline", { exact: true })).toBeVisible();
-    const inspector = page.getByRole("complementary", { name: "QGIS position inspector" });
+    const inspector = page.getByRole("complementary", { name: "GPS position inspector" });
     await expect(inspector.getByText("Latest position received", { exact: true })).toBeVisible();
     await expect(inspector.locator("time")).toHaveAttribute("datetime", /.+/);
   });
@@ -225,7 +225,7 @@ test.describe("QGIS demo state lab", () => {
     await expect(alert).toContainText("The previous fixture remains visible below.");
     await expect(
       page
-        .getByRole("complementary", { name: "QGIS position inspector" })
+        .getByRole("complementary", { name: "GPS position inspector" })
         .getByText("Latest position received", { exact: true }),
     ).toBeVisible();
   });
@@ -301,7 +301,7 @@ test("mobile navigation is keyboard operable, traps focus, and restores it", asy
 
   const mobileNavigation = page.getByRole("navigation", { name: "Mobile navigation" });
   const homeLink = mobileNavigation.getByRole("link", { name: "Home", exact: true });
-  const demoLink = mobileNavigation.getByRole("link", { name: "Open QGIS demo", exact: true });
+  const demoLink = mobileNavigation.getByRole("link", { name: "Open satellite console", exact: true });
   await expect(menuButton).toHaveAttribute("aria-expanded", "true");
   await expect(mobileNavigation).toBeVisible();
   await expect(homeLink).toBeFocused();
@@ -481,7 +481,7 @@ test("the closing image callout waits for its visible content and replays", asyn
   await expect(image).toHaveAttribute("data-motion-reveal", "complete");
 });
 
-test("Platform, QGIS, and Demo sections all animate and replay on scroll", async ({ page }) => {
+test("Platform, GIS, and Demo sections all animate and replay on scroll", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
 
   const pages = [
@@ -507,13 +507,12 @@ test("Platform, QGIS, and Demo sections all animate and replay on scroll", async
         ".architecture-flow__arrow",
         ".source-register__list > div",
         ".contract-fields > div",
-        ".state-semantics__grid > article",
         ".confirmation-list > ol > li",
       ],
     },
     {
       path: "/demo",
-      top: ".demo-intro",
+      top: ".satellite-intro",
       replayTarget: ".track-list > div:last-child",
       covered: [
         ".scenario-switcher > button",

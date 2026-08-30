@@ -144,16 +144,16 @@ export function QgisDemo() {
 
   return (
     <div className="demo-experience">
-      <section className="demo-intro shell">
+      <section className="demo-intro demo-intro--secondary shell">
         <div>
-          <p className="eyebrow">QGIS state lab</p>
-          <h1>Read the position.<br /><em>Judge the signal.</em></h1>
+          <p className="eyebrow">GPS connection state lab</p>
+          <h2>Read the position.<br /><em>Judge the signal.</em></h2>
         </div>
         <div className="demo-intro__copy">
           <StatusBadge tone="simulated">Simulated only</StatusBadge>
           <p>
-            This map receives normalized fixtures through the Catalyst backend route. It does not
-            connect to a verified live QGIS source and must not be used for field decisions.
+            This map receives normalized GPS fixtures through the Catalyst backend route. It is a
+            UI state test—not verified live tracker data—and must not be used for field decisions.
           </p>
         </div>
       </section>
@@ -229,7 +229,7 @@ export function QgisDemo() {
         <div className="operations-console__workspace" aria-busy={busy}>
           <QgisMap snapshot={snapshot} busy={busy} />
 
-          <aside className="position-inspector" aria-label="QGIS position inspector">
+          <aside className="position-inspector" aria-label="GPS position inspector">
             <div className="position-inspector__title">
               <div>
                 <span className="data-label">Team</span>
@@ -357,8 +357,8 @@ export function QgisDemo() {
           <p className="eyebrow">Integration limitation</p>
           <h2>Simulation proves interface behavior—not upstream compatibility.</h2>
           <p>
-            Live completion requires a verified QGIS deployment, version, license, representative
-            data, production adapter, and an accepted end-to-end test. Those inputs remain unavailable.
+            Live completion requires the client&apos;s chosen GPS device or tracking feed, representative
+            data, a production adapter, and an accepted end-to-end field test.
           </p>
         </div>
       </aside>

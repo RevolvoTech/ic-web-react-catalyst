@@ -10,7 +10,7 @@ import { BrandMark } from "@/components/brand-mark";
 const navigation = [
   { href: "/", label: "Home" },
   { href: "/platform", label: "Platform" },
-  { href: "/qgis", label: "QGIS Integration" },
+  { href: "/qgis", label: "GIS & Satellite" },
 ] as const;
 
 function isCurrent(pathname: string, href: string) {
@@ -144,7 +144,7 @@ export function SiteHeader() {
                 aria-current={pathname.startsWith("/demo") ? "page" : undefined}
                 onClick={() => setOpen(false)}
               >
-                Open QGIS demo
+                Open satellite console
               </Link>
             </m.nav>
           </m.div>

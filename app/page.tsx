@@ -198,7 +198,7 @@ export default function HomePage() {
                 </div>
               </div>
               <p className="inspector-note">
-                Demonstration data only. No live QGIS source is connected.
+                GPS demonstration data only. Satellite discovery uses the live Copernicus catalogue.
               </p>
               <Link className="button button--primary" href="/demo">
                 Inspect every state <ArrowRight aria-hidden="true" />
@@ -243,11 +243,11 @@ export default function HomePage() {
           <p className="eyebrow">Explore the pilot</p>
           <h2>Operational clarity starts with honest data.</h2>
           <p>
-            Walk through the simulated QGIS states and see exactly how Catalyst handles current,
-            stale, offline, empty, error, and unavailable information.
+            Search live Sentinel-2 acquisitions, then walk through simulated GPS states to see how
+            Catalyst handles current, stale, offline, empty, error, and unavailable information.
           </p>
           <Link className="button button--primary" href="/demo">
-            Open the QGIS demo <ArrowRight aria-hidden="true" />
+            Open the satellite console <ArrowRight aria-hidden="true" />
           </Link>
         </div>
       </section>

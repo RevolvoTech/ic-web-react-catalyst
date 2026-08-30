@@ -94,7 +94,7 @@ const revealRules: RevealRule[] = [
     distance: 14,
   },
 
-  // QGIS integration
+  // GIS integration
   {
     trigger: ".integration-status > div",
     cascade: 0.075,
@@ -138,8 +138,13 @@ const revealRules: RevealRule[] = [
   },
   { trigger: ".simple-cta", targets: ":scope > *", stagger: 0.07 },
 
-  // Interactive demo
+  // Satellite and GPS demo
   { trigger: ".demo-intro", targets: ":scope > *", distance: 18, amount: 0.05 },
+  { trigger: ".satellite-console__header", distance: 10, duration: 0.48 },
+  { trigger: ".satellite-query-strip", targets: ":scope > span", distance: 8, stagger: 0.045 },
+  { trigger: ".satellite-scene-list > button", cascade: 0.035, distance: 10 },
+  { trigger: ".satellite-preview", amount: 0.1, distance: 18, duration: 0.76 },
+  { trigger: ".satellite-inspector__details", amount: 0.1, distance: 18, duration: 0.7 },
   { trigger: ".scenario-section__heading", targets: ":scope > *" },
   {
     trigger: ".scenario-switcher > button",

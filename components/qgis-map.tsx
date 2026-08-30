@@ -280,7 +280,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         ref={containerRef}
         className="qgis-map__surface"
         role="region"
-        aria-label="Interactive simulated QGIS route map"
+        aria-label="Interactive simulated GPS route map"
       />
       <div className="qgis-map__grid" aria-hidden="true" />
       <div className="qgis-map__label">

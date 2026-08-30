@@ -22,7 +22,12 @@ and have that data appear correctly in the command view.
 The product is decision support. It must never claim a route is **SAFE** or
 **UNSAFE**, hide stale data, or present missing data as current.
 
-## Catalyst Milestone 1 — Website and QGIS
+## Catalyst Milestone 1 — Website and GIS
+
+> Current satellite architecture and required pilot inputs are recorded in
+> [SATELLITE_GIS_MVP.md](SATELLITE_GIS_MVP.md). QGIS-specific material below is
+> retained as the historical GPS fixture brief, not as a requirement for QGIS
+> Server.
 
 This is a client-requested bootstrap milestone before the source plan's numbered
 milestones.

@@ -17,7 +17,7 @@ export function SiteFooter() {
         <nav className="site-footer__nav" aria-label="Footer navigation">
           <p className="eyebrow">Explore</p>
           <Link href="/platform">Platform</Link>
-          <Link href="/qgis">QGIS Integration</Link>
+          <Link href="/qgis">GIS & Satellite</Link>
           <Link href="/demo">Interactive Demo</Link>
         </nav>
 

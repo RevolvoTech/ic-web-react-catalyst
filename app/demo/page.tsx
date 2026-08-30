@@ -1,26 +1,30 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { QgisDemo } from "@/components/qgis-demo";
+import { SatelliteExplorer } from "@/components/satellite-explorer";
 
 export const metadata: Metadata = {
-  title: "QGIS State Demo",
+  title: "Satellite & GPS Operations Demo",
   description:
-    "Inspect simulated current, stale, offline, empty, error, and unavailable QGIS states through the Catalyst backend boundary.",
+    "Search live Copernicus Sentinel-2 scenes and inspect simulated GPS connection states through the Catalyst backend boundary.",
 };
 
 function DemoFallback() {
   return (
     <div className="demo-fallback shell" role="status">
       <span className="page-loading__signal" aria-hidden="true" />
-      Preparing the QGIS state lab…
+      Preparing the operations console…
     </div>
   );
 }
 
 export default function DemoPage() {
   return (
-    <Suspense fallback={<DemoFallback />}>
-      <QgisDemo />
-    </Suspense>
+    <>
+      <SatelliteExplorer />
+      <Suspense fallback={<DemoFallback />}>
+        <QgisDemo />
+      </Suspense>
+    </>
   );
 }

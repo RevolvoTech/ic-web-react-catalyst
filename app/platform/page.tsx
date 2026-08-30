@@ -192,21 +192,21 @@ export default function PlatformPage() {
         <div className="scope-columns">
           <div>
             <h3>Core pilot</h3>
-            <p>Planning, route context, weather, team state, reports, command awareness, and advisory alerts.</p>
+            <p>Planning, route context, satellite intelligence, weather, team state, reports, command awareness, and advisory alerts.</p>
           </div>
           <div>
             <h3>Future scope</h3>
-            <p>Garmin support, satellite intelligence, predictive analytics, AI briefings, 3D terrain, logistics, and rescue integrations.</p>
+            <p>Garmin support, premium high-resolution imagery, predictive analytics, AI briefings, 3D terrain, logistics, and rescue integrations.</p>
           </div>
         </div>
       </section>
 
       <section className="simple-cta shell">
         <p className="eyebrow">Next view</p>
-        <h2>See the QGIS boundary in detail.</h2>
-        <p>Review what the demo proves, what remains simulated, and what must be confirmed before live integration.</p>
+        <h2>See the GIS boundary in detail.</h2>
+        <p>Review the live Copernicus catalogue, provider-neutral contract, and the inputs needed for processed imagery.</p>
         <Link className="button button--primary" href="/qgis">
-          Review QGIS Integration <ArrowRight aria-hidden="true" />
+          Review GIS & Satellite <ArrowRight aria-hidden="true" />
         </Link>
       </section>
     </>
