@@ -10,7 +10,7 @@ import { BrandMark } from "@/components/brand-mark";
 const navigation = [
   { href: "/", label: "Home" },
   { href: "/platform", label: "Platform" },
-  { href: "/qgis", label: "GIS & Satellite" },
+  { href: "/gis", label: "GIS & Satellite" },
 ] as const;
 
 function isCurrent(pathname: string, href: string) {

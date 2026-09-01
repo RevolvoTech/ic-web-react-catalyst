@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-const routes = ["/", "/platform", "/qgis", "/demo"] as const;
+const routes = ["/", "/platform", "/gis", "/demo"] as const;
 const wcagTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 async function waitForStablePage(page: Page, route: (typeof routes)[number]) {

@@ -22,7 +22,7 @@ test("live weather is presented with source and human-decision context", async (
   await expect(page.getByText("Decision support · Human review required")).toBeVisible();
 });
 
-test("a GPX route becomes a reviewable elevation plan without inventing terrain data", async ({ page }) => {
+test("a GPX route becomes a reviewable altitude-aware weather plan without inventing terrain data", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/demo");
   const route = page.locator(".route-section");
@@ -31,6 +31,11 @@ test("a GPX route becomes a reviewable elevation plan without inventing terrain 
   await route.getByRole("button", { name: "Analyze route" }).click();
   await expect(route.getByRole("heading", { name: "Kinshofer test route" })).toBeVisible();
   await expect(route.getByRole("cell", { name: "DEM pending" })).toBeVisible();
+  await route.getByRole("button", { name: "Analyze weather" }).click();
+  await expect(route.getByRole("heading", { name: "Altitude-aware wind evidence" })).toBeVisible({ timeout: 30_000 });
+  await expect(route.getByText("Open-Meteo · ECMWF IFS 0.25°")).toBeVisible();
+  await expect(route.getByRole("group", { name: "Inspect route weather segment" })).toBeVisible();
+  await expect(route.getByText("Configured threshold", { exact: true })).toBeVisible();
   await route.getByRole("button", { name: "Review draft" }).click();
   await expect(route.getByText("Review", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);

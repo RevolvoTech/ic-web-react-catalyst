@@ -12,7 +12,7 @@ const routes = [
     currentNavigationItem: "Platform",
   },
   {
-    path: "/qgis",
+    path: "/gis",
     h1: /Geography,\s+without vendor lock-in\./i,
     currentNavigationItem: "GIS & Satellite",
   },
@@ -106,7 +106,7 @@ test.describe("route structure", () => {
       ).toHaveAttribute("href", "/platform");
       await expect(
         navigation.getByRole("link", { name: "GIS & Satellite", exact: true }),
-      ).toHaveAttribute("href", "/qgis");
+      ).toHaveAttribute("href", "/gis");
 
       const currentLinks = navigation.locator('[aria-current="page"]');
       if (route.currentNavigationItem) {
@@ -283,7 +283,7 @@ test.describe("QGIS demo state lab", () => {
 
 test("mobile navigation is keyboard operable, traps focus, and restores it", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/qgis");
+  await page.goto("/gis");
 
   const skipLink = page.getByRole("link", { name: "Skip to main content" });
   const brandLink = page.getByRole("link", { name: "Catalyst home" }).first();
@@ -496,7 +496,7 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
       ],
     },
     {
-      path: "/qgis",
+      path: "/gis",
       top: ".editorial-hero",
       replayTarget: ".contract-fields > div:last-child",
       covered: [

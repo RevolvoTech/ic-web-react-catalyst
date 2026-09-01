@@ -205,7 +205,7 @@ export default function PlatformPage() {
         <p className="eyebrow">Next view</p>
         <h2>Explore GIS and satellite data.</h2>
         <p>Review live Copernicus scenes, source details, cloud cover, and resolution.</p>
-        <Link className="button button--primary" href="/qgis">
+        <Link className="button button--primary" href="/gis">
           Review GIS & Satellite <ArrowRight aria-hidden="true" />
         </Link>
       </section>
