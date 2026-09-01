@@ -124,6 +124,18 @@ export function SatelliteExplorer() {
 
   const selectedScene = catalog?.scenes.find((scene) => scene.id === selectedId) ?? null;
 
+  useEffect(() => {
+    if (!selectedScene) return;
+    const detail = {
+      sceneId: selectedScene.id,
+      capturedAt: selectedScene.capturedAt,
+      cloudCoverPercent: selectedScene.cloudCoverPercent,
+      groundSampleDistanceM: selectedScene.groundSampleDistanceM,
+    };
+    window.localStorage.setItem("catalyst:selected-satellite-scene", JSON.stringify(detail));
+    window.dispatchEvent(new CustomEvent("catalyst:satellite-scene", { detail }));
+  }, [selectedScene]);
+
   async function loadProcessedImage() {
     if (!selectedScene) return;
     setRenderState("loading");

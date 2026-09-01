@@ -10,6 +10,7 @@ import { MotionOrchestrator } from "@/components/motion-orchestrator";
 import { MotionProvider } from "@/components/motion-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { OfflineRuntime } from "@/components/offline-runtime";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://catalyst.example"),
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <main id="main-content">{children}</main>
           <SiteFooter />
           <MotionOrchestrator />
+          <OfflineRuntime />
         </MotionProvider>
       </body>
     </html>
