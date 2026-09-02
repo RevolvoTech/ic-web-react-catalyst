@@ -542,7 +542,7 @@
     linear-gradient(90deg, color-mix(in srgb, var(--color-border) 16%, transparent) 1px, transparent 1px);
   background-size: 72px 72px;
   mix-blend-mode: screen;
-  opacity: 0.35;
+  opacity: 0.18;
 }
 
 .qgis-map__busy {
@@ -567,14 +567,108 @@
   top: 1rem;
   left: 1rem;
   display: flex;
-  max-width: calc(100% - 6.75rem);
+  width: min(28rem, calc(100% - 6.75rem));
   flex-direction: column;
-  padding: 0.65rem 0.75rem;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
   overflow-wrap: anywhere;
 }
 
-.qgis-map__label span:last-child {
+.qgis-map__label strong {
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.qgis-map__label > span:not(.data-label) {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.qgis-map__label small {
   color: var(--color-warning);
+  font-size: var(--text-compact-size);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.qgis-map__center-marker {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  width: 1.75rem;
+  height: 1.75rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.qgis-map__center-marker::before {
+  position: absolute;
+  inset: 0.45rem;
+  border: 1px solid var(--color-snow);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-canvas) 62%, transparent);
+  content: "";
+}
+
+.qgis-map__center-marker span {
+  position: absolute;
+  background: var(--color-snow);
+}
+
+.qgis-map__center-marker span:first-child {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 1px;
+}
+
+.qgis-map__center-marker span:last-child {
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 100%;
+}
+
+.qgis-map__scene-actions {
+  position: absolute;
+  z-index: 4;
+  top: 12rem;
+  right: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, 2.75rem);
+  gap: 0.5rem;
+}
+
+.qgis-map__scene-actions button {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: background-color var(--motion-fast) var(--ease-enter), transform var(--motion-instant) var(--ease-enter);
+}
+
+.qgis-map__scene-actions button:hover:not(:disabled) {
+  background: var(--color-surface-active);
+}
+
+.qgis-map__scene-actions button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.qgis-map__scene-actions button:disabled {
+  color: var(--color-text-muted);
+  cursor: wait;
+}
+
+.qgis-map__scene-actions svg {
+  width: 1.15rem;
 }
 
 .qgis-map__legend {
@@ -635,36 +729,12 @@
   text-align: center;
 }
 
-.qgis-map .maplibregl-ctrl-group {
-  overflow: hidden;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  box-shadow: none;
-}
-
-.qgis-map .maplibregl-ctrl-top-right {
-  top: 1rem;
-  right: 1rem;
-}
-
-.qgis-map .maplibregl-ctrl-top-right .maplibregl-ctrl {
-  margin: 0;
-}
-
-.qgis-map .maplibregl-ctrl-group button {
-  width: 2.75rem;
-  height: 2.75rem;
-  background-color: var(--color-surface);
-}
-
-.qgis-map .maplibregl-ctrl-group button + button {
-  border-top: 1px solid var(--color-border);
-}
-
-.qgis-map .maplibregl-ctrl button .maplibregl-ctrl-icon {
-  filter: invert(1);
-  opacity: 0.85;
+.qgis-map .esri-attribution {
+  max-width: min(50%, 36rem);
+  background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
+  color: var(--color-text-muted);
+  font-family: var(--font-data);
+  font-size: 0.65rem;
 }
 
 .position-inspector {
@@ -1077,6 +1147,10 @@
 }
 
 @media (max-width: 28rem) {
+  .qgis-map__scene-actions {
+    top: 16rem;
+  }
+
   .scenario-switcher {
     grid-template-columns: 1fr;
   }

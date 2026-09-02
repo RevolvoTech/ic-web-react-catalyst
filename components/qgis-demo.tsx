@@ -320,7 +320,7 @@ export function QgisDemo() {
 
         <footer className="operations-console__footer">
           <span>Position data: {snapshot?.mode === "live" ? "Live" : "Simulated"}</span>
-          <span>Map: MapLibre GL JS</span>
+          <span>Map: ArcGIS SceneView · global 3D</span>
           <span>Coordinates: WGS84</span>
         </footer>
       </section>

@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import "@fontsource-variable/outfit";
-import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import "@/styles/marketing.css";
 import "@/styles/demo.css";
@@ -12,8 +11,22 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { OfflineRuntime } from "@/components/offline-runtime";
 
+const productionUrl = "https://ic-web-react-catalyst.vercel.app";
+
+function metadataBase() {
+  const configured = process.env.SITE_URL
+    ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : productionUrl);
+  try {
+    return new URL(configured);
+  } catch {
+    return new URL(productionUrl);
+  }
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://catalyst.example"),
+  metadataBase: metadataBase(),
   title: {
     default: "Catalyst — Expedition Operations",
     template: "%s — Catalyst",

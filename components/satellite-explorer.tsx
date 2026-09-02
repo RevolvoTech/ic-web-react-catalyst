@@ -11,7 +11,7 @@ import {
   ScanSearch,
   Snowflake,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import {
   formatPercent,
@@ -79,6 +79,8 @@ export function SatelliteExplorer() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderState, setRenderState] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
+  const selectedIdRef = useRef<string | null>(null);
+  const renderControllerRef = useRef<AbortController | null>(null);
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -99,11 +101,21 @@ export function SatelliteExplorer() {
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Satellite catalogue request failed.");
       if (!isSatelliteCatalog(payload)) throw new Error("The satellite service returned an unexpected response.");
       setCatalog(payload);
-      setSelectedId((current) =>
-        current && payload.scenes.some((scene) => scene.id === current)
-          ? current
-          : (payload.scenes[0]?.id ?? null),
-      );
+      const nextSelectedId = selectedIdRef.current
+        && payload.scenes.some((scene) => scene.id === selectedIdRef.current)
+        ? selectedIdRef.current
+        : (payload.scenes[0]?.id ?? null);
+      if (selectedIdRef.current !== nextSelectedId) {
+        renderControllerRef.current?.abort();
+        renderControllerRef.current = null;
+        setRenderUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return null;
+        });
+        setRenderState("idle");
+      }
+      selectedIdRef.current = nextSelectedId;
+      setSelectedId(nextSelectedId);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : "Satellite catalogue request failed.");
     } finally {
@@ -118,6 +130,7 @@ export function SatelliteExplorer() {
 
   useEffect(() => {
     return () => {
+      renderControllerRef.current?.abort();
       if (renderUrl) URL.revokeObjectURL(renderUrl);
     };
   }, [renderUrl]);
@@ -138,9 +151,13 @@ export function SatelliteExplorer() {
 
   async function loadProcessedImage() {
     if (!selectedScene) return;
+    const requestedSceneId = selectedScene.id;
+    renderControllerRef.current?.abort();
+    const controller = new AbortController();
+    renderControllerRef.current = controller;
     setRenderState("loading");
     const parameters = new URLSearchParams({
-      sceneId: selectedScene.id,
+      sceneId: requestedSceneId,
       bbox: PILOT_BBOX,
       width: "1200",
       height: "1200",
@@ -148,23 +165,38 @@ export function SatelliteExplorer() {
     try {
       const response = await fetch(`/api/satellite/render?${parameters}`, {
         headers: { accept: "image/png" },
+        signal: controller.signal,
       });
       if (!response.ok) {
-        setRenderState("unavailable");
+        if (renderControllerRef.current === controller) setRenderState("unavailable");
         return;
       }
       const nextUrl = URL.createObjectURL(await response.blob());
+      if (
+        controller.signal.aborted ||
+        renderControllerRef.current !== controller ||
+        selectedIdRef.current !== requestedSceneId
+      ) {
+        URL.revokeObjectURL(nextUrl);
+        return;
+      }
       setRenderUrl((current) => {
         if (current) URL.revokeObjectURL(current);
         return nextUrl;
       });
       setRenderState("ready");
-    } catch {
-      setRenderState("unavailable");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (renderControllerRef.current === controller) setRenderState("unavailable");
+    } finally {
+      if (renderControllerRef.current === controller) renderControllerRef.current = null;
     }
   }
 
   function selectScene(scene: SatelliteScene) {
+    renderControllerRef.current?.abort();
+    renderControllerRef.current = null;
+    selectedIdRef.current = scene.id;
     setSelectedId(scene.id);
     setRenderUrl((current) => {
       if (current) URL.revokeObjectURL(current);
@@ -181,8 +213,8 @@ export function SatelliteExplorer() {
           <h1>See the terrain.<br /><em>Know the source.</em></h1>
         </div>
         <div className="demo-intro__copy">
-          <StatusBadge tone={catalog ? "information" : catalogError ? "critical" : "unknown"}>
-            {catalog ? "Live catalogue" : catalogError ? "Unavailable" : "Connecting"}
+          <StatusBadge tone={catalogError ? catalog ? "warning" : "critical" : catalog ? "information" : "unknown"}>
+            {catalogError ? catalog ? "Refresh failed · last known" : "Unavailable" : catalog ? "Live catalogue" : "Connecting"}
           </StatusBadge>
           <p>
             Catalyst searches the live Copernicus Sentinel-2 catalogue.

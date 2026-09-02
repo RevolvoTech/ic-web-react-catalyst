@@ -13,7 +13,7 @@ const registry = [
   ["Satellite source", "Copernicus Data Space"],
   ["Collection", "Sentinel-2 Level-2A"],
   ["Imagery", "Processed true colour"],
-  ["Web maps", "MapLibre GL JS"],
+  ["3D globe", "ArcGIS SceneView + World Elevation"],
   ["Spatial data", "PostgreSQL + PostGIS"],
 ] as const;
 
@@ -29,8 +29,8 @@ export default function GisPage() {
     <>
       <EditorialHero
         eyebrow="GIS & satellite data"
-        title={<>Geography, <em>without vendor lock-in.</em></>}
-        description="Explore Sentinel-2 scenes with capture time, cloud cover, snow cover, and source resolution. MapLibre powers the web map, while QGIS Desktop can support deeper analysis."
+        title={<>Global context, <em>mountain-scale detail.</em></>}
+        description="Move from a global 3D Earth into Karakoram terrain, then inspect Sentinel-2 scenes with capture time, cloud cover, snow cover, and source resolution. ArcGIS renders the globe while Copernicus remains the satellite source."
         image="/images/catalyst-hero.png"
         imageAlt="Mountaineers moving along a remote snow ridge beneath a dark sky"
         actions={<Link className="button button--primary" href="/demo">Open satellite console <ArrowRight aria-hidden="true" /></Link>}

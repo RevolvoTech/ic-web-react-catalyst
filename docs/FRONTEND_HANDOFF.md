@@ -76,7 +76,8 @@ complete. Do not hide the gap behind simulated data.
 The source plan requires the web application to provide:
 
 - expedition creation and team assignment;
-- a MapLibre command map using a licensed production tile source;
+- an ArcGIS SceneView command globe using the configured public API key,
+  satellite basemap, and world elevation;
 - GPX import, route drawing/editing, segments, camps, waypoints, manual hazards,
   and immutable published plans;
 - elevation profile, distance, gain/loss, approximate slope, and provenance;

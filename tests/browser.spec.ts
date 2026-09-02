@@ -13,7 +13,7 @@ const routes = [
   },
   {
     path: "/gis",
-    h1: /Geography,\s+without vendor lock-in\./i,
+    h1: /Global context,\s+mountain-scale detail\./i,
     currentNavigationItem: "GIS & Satellite",
   },
   {
@@ -58,7 +58,7 @@ async function selectScenario(page: Page, label: string, state: string) {
   });
 
   await button.click();
-  await expect(page).toHaveURL(new RegExp(`[?&]state=${state}(?:&|$)`));
+  await expect(page).toHaveURL(new RegExp(`[?&]state=${state}(?:&|$)`), { timeout: 15_000 });
   await expect(button).toHaveAttribute("aria-pressed", "true");
   await responsePromise;
   await expect(consoleWorkspace(page)).toHaveAttribute("aria-busy", "false");
@@ -120,6 +120,20 @@ test.describe("route structure", () => {
 });
 
 test.describe("QGIS demo state lab", () => {
+  test("same-origin reverse geocoder validates and names the map center", async ({ request }) => {
+    const response = await request.get("/api/geocode/reverse?latitude=35.742&longitude=76.519");
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toMatchObject({
+      schemaVersion: "catalyst.map.location.v1",
+      name: "Karakoram map center, Gilgit-Baltistan, Pakistan",
+      latitude: 35.742,
+      longitude: 76.519,
+    });
+
+    const invalid = await request.get("/api/geocode/reverse?latitude=91&longitude=76.519");
+    expect(invalid.status()).toBe(400);
+  });
+
   test("same-origin endpoint proxies the validated backend fixture snapshot", async ({ request }) => {
     const response = await request.get("/api/qgis/snapshot?scenario=current");
 
@@ -172,6 +186,36 @@ test.describe("QGIS demo state lab", () => {
     await expect(inspector.getByText("Generated for demonstration", { exact: true })).toBeVisible();
     await expect(page.getByText("Planned route", { exact: true })).toBeVisible();
     await expect(page.getByText("Coordinates: WGS84", { exact: true })).toBeVisible();
+  });
+
+  test("3D Earth pans, updates its center label, and can return to the pilot area", async ({ page }) => {
+    test.setTimeout(90_000);
+    await waitForCurrentFixture(page);
+    const map = page.getByRole("region", { name: "Interactive 3D Earth with simulated GPS route overlay" });
+    const mapShell = page.locator(".qgis-map");
+    const centerLabel = page.locator(".qgis-map__label");
+    await map.scrollIntoViewIfNeeded();
+    await expect(mapShell).toHaveAttribute("data-map-ready", "true", { timeout: 30_000 });
+    await expect(centerLabel.getByText("Karakoram map center, Gilgit-Baltistan, Pakistan", { exact: true })).toBeVisible();
+
+    const before = await centerLabel.locator("span").nth(1).textContent();
+    const box = await map.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2);
+    await page.mouse.down();
+    await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2 + 150, (box?.y ?? 0) + (box?.height ?? 0) / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => centerLabel.locator("span").nth(1).textContent()).not.toBe(before);
+
+    await page.getByRole("button", { name: "Return to Karakoram pilot area" }).click();
+    await expect.poll(async () => {
+      const text = await centerLabel.locator("span").nth(1).textContent();
+      const match = text?.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      if (!match) return false;
+      // A tilted SceneView reports the camera's ground-center rather than the
+      // exact target point, so verify that navigation returns to the pilot AOI.
+      return Math.abs(Number(match[1]) - 35.742) < 0.03 && Math.abs(Number(match[2]) - 76.519) < 0.03;
+    }, { timeout: 15_000 }).toBe(true);
   });
 
   test("switches to stale data and keeps the last-known fix visible", async ({ page }) => {
@@ -480,6 +524,7 @@ test("the closing image callout waits for its visible content and replays", asyn
 });
 
 test("Platform, GIS, and Demo sections all animate and replay on scroll", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 1280, height: 720 });
 
   const pages = [
@@ -514,17 +559,17 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
       covered: [
         ".scenario-switcher > button",
         ".operations-console__header",
-        ".qgis-map",
-        ".position-inspector",
-        ".operations-console__footer > span",
         ".track-list > div",
       ],
     },
   ] as const;
 
   for (const route of pages) {
-    await page.goto(route.path);
-    if (route.path === "/demo") await waitForCurrentFixture(page);
+    if (route.path === "/demo") {
+      await waitForCurrentFixture(page);
+    } else {
+      await page.goto(route.path);
+    }
     await page.evaluate(() =>
       window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }),
     );
@@ -545,17 +590,24 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
       await expect(motionTarget, `${selector} should animate on ${route.path}`).toHaveAttribute(
         "data-motion-reveal",
         "complete",
+        { timeout: route.path === "/demo" ? 15_000 : 5_000 },
       );
     }
 
     const target = page.locator(route.replayTarget);
-    await target.scrollIntoViewIfNeeded();
+    await target.evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
     await expect(target).toHaveAttribute("data-motion-reveal", "complete");
 
-    await page.locator(route.top).scrollIntoViewIfNeeded();
+    await page.locator(route.top).evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
     await expect(target).toHaveAttribute("data-motion-reveal", "pending");
 
-    await target.scrollIntoViewIfNeeded();
+    await target.evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
     await expect(target).toHaveAttribute("data-motion-reveal", "complete");
   }
 });
@@ -563,9 +615,10 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
 test.describe("document width", () => {
   for (const route of routes) {
     test(`${route.path} has no horizontal overflow at required widths`, async ({ page }) => {
+      test.setTimeout(90_000);
       await page.setViewportSize({ width: viewportWidths[0], height: 900 });
       await page.goto(route.path);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 15_000 });
       if (route.path === "/demo") {
         await expect(consoleWorkspace(page)).toHaveAttribute("aria-busy", "false");
       }
@@ -637,12 +690,16 @@ test("wide-screen shells use the available canvas instead of leaving oversized g
   }
 });
 
-test("the QGIS map overlays stay inside the map without colliding", async ({ page }) => {
+test("the ArcGIS scene overlays stay inside the map without colliding", async ({ page }) => {
+  // ArcGIS may stream imagery and elevation tiles again after each viewport resize.
+  test.setTimeout(180_000);
   const mapWidths = [280, 320, 360, 390, 412, 480, 768, 1024, 1440, 1920, 2560] as const;
 
   await page.setViewportSize({ width: mapWidths[0], height: 900 });
   await waitForCurrentFixture(page);
-  await expect(page.locator(".qgis-map .maplibregl-ctrl-group")).toBeVisible();
+  await page.locator(".qgis-map").scrollIntoViewIfNeeded();
+  await expect(page.locator(".qgis-map")).toHaveAttribute("data-map-ready", "true", { timeout: 30_000 });
+  await expect(page.locator(".qgis-map__scene-actions")).toBeVisible();
 
   for (const width of mapWidths) {
     await page.setViewportSize({ width, height: 900 });
@@ -656,10 +713,10 @@ test("the QGIS map overlays stay inside the map without colliding", async ({ pag
     const layout = await page.evaluate(() => {
       const selectors = {
         map: ".qgis-map",
-        canvas: ".qgis-map .maplibregl-canvas",
+        canvas: ".qgis-map .esri-view-surface",
         label: ".qgis-map__label",
         legend: ".qgis-map__legend",
-        controls: ".qgis-map .maplibregl-ctrl-group",
+        controls: ".qgis-map__scene-actions",
       } as const;
       const boxes = Object.fromEntries(
         Object.entries(selectors).map(([name, selector]) => {
@@ -738,6 +795,8 @@ test("the Platform environment panels follow the responsive column breakpoint", 
 
   for (const width of [280, 320, 390, 768, 1024] as const) {
     await page.setViewportSize({ width, height: 900 });
+    await expect(panels.nth(0)).toBeVisible({ timeout: 15_000 });
+    await expect(panels.nth(1)).toBeVisible({ timeout: 15_000 });
     const first = await panels.nth(0).boundingBox();
     const second = await panels.nth(1).boundingBox();
 

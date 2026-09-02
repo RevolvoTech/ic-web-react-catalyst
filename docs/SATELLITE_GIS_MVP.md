@@ -38,8 +38,8 @@ described as proving a route or hazard safe.
 
 ## Technology roles
 
-- MapLibre GL JS renders interactive web maps without locking the product to a
-  tile vendor.
+- ArcGIS Maps SDK for JavaScript renders the interactive global 3D scene and
+  world elevation. It is loaded from Esri's CDN only on the GIS surface.
 - PostgreSQL + PostGIS will store expedition, route, camp, waypoint, and spatial
   records.
 - Copernicus supplies free satellite observations.

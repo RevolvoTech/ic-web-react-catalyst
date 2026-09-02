@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, BrainCircuit, CheckCircle2, CircleHelp, CloudSun, Download, FileCheck2, Layers3, ListChecks, MountainSnow, Route as RouteIcon, Upload, Wind } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { isDecisionBriefing, type DecisionAssessment, type DecisionBriefing, type DecisionEvidence } from "@/lib/decision";
 import { isHazardAnalysis, type HazardAnalysis, type HazardRiskLevel } from "@/lib/hazard";
@@ -11,7 +11,12 @@ import { isTerrainAnalysis, type TerrainAnalysis, type TerrainSlopeClass } from 
 
 type PlanStage = "draft" | "review" | "published";
 type BriefingScene = { sceneId: string; capturedAt: string; cloudCoverPercent: number | null; groundSampleDistanceM: number };
+type RouteRequestKind = "route" | "terrain" | "weather" | "briefing";
 const SAVED_PLAN_KEY = "catalyst:saved-route-plan:v1";
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
 
 function terrainTone(value: TerrainSlopeClass | undefined): "success" | "warning" | "critical" | "unknown" {
   if (value === "gentle") return "success";
@@ -198,13 +203,60 @@ export function RoutePlanner() {
   const [briefingBusy, setBriefingBusy] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [restoredPlan, setRestoredPlan] = useState(false);
+  const requestControllersRef = useRef<Partial<Record<RouteRequestKind, AbortController>>>({});
+  const routeRevisionRef = useRef(0);
+  const satelliteSceneIdRef = useRef<string | null>(null);
   const publishedAt = useMemo(() => stage === "published" ? new Date().toISOString() : null, [stage]);
+
+  function beginRequest(kind: RouteRequestKind) {
+    requestControllersRef.current[kind]?.abort();
+    const controller = new AbortController();
+    requestControllersRef.current[kind] = controller;
+    return controller;
+  }
+
+  function isCurrentRequest(kind: RouteRequestKind, controller: AbortController) {
+    return requestControllersRef.current[kind] === controller && !controller.signal.aborted;
+  }
+
+  function finishRequest(kind: RouteRequestKind, controller: AbortController) {
+    if (requestControllersRef.current[kind] === controller) {
+      delete requestControllersRef.current[kind];
+      return true;
+    }
+    return false;
+  }
+
+  function cancelEvidenceRequests() {
+    for (const kind of ["terrain", "weather", "briefing"] as const) {
+      requestControllersRef.current[kind]?.abort();
+      delete requestControllersRef.current[kind];
+    }
+    setTerrainBusy(false);
+    setWeatherBusy(false);
+    setBriefingBusy(false);
+  }
+
+  useEffect(() => () => {
+    for (const controller of Object.values(requestControllersRef.current)) controller.abort();
+  }, []);
 
   useEffect(() => {
     function readScene(value: unknown) {
       if (typeof value !== "object" || value === null) return;
       const scene = value as Partial<BriefingScene>;
-      if (typeof scene.sceneId === "string" && typeof scene.capturedAt === "string" && (scene.cloudCoverPercent === null || typeof scene.cloudCoverPercent === "number") && typeof scene.groundSampleDistanceM === "number") setSatelliteScene(scene as BriefingScene);
+      if (typeof scene.sceneId === "string" && typeof scene.capturedAt === "string" && (scene.cloudCoverPercent === null || typeof scene.cloudCoverPercent === "number") && typeof scene.groundSampleDistanceM === "number") {
+        const nextScene = scene as BriefingScene;
+        if (satelliteSceneIdRef.current !== nextScene.sceneId) {
+          requestControllersRef.current.briefing?.abort();
+          delete requestControllersRef.current.briefing;
+          setBriefingBusy(false);
+          setBriefing(null);
+          setStage("draft");
+        }
+        satelliteSceneIdRef.current = nextScene.sceneId;
+        setSatelliteScene(nextScene);
+      }
     }
     try { const stored = window.localStorage.getItem("catalyst:selected-satellite-scene"); if (stored) readScene(JSON.parse(stored)); } catch { /* A blocked storage context simply leaves imagery unattached. */ }
     const listener = (event: Event) => readScene((event as CustomEvent<unknown>).detail);
@@ -240,57 +292,83 @@ export function RoutePlanner() {
 
   async function analyze() {
     if (!file) { setError("Choose a GPX file first."); return; }
+    routeRevisionRef.current += 1;
+    cancelEvidenceRequests();
+    const controller = beginRequest("route");
     setBusy(true); setError(null);
     try {
-      const response = await fetch(`/api/routes/analyze?name=${encodeURIComponent(name || file.name.replace(/\.gpx$/iu, ""))}`, { method: "POST", body: await file.arrayBuffer(), headers: { accept: "application/json", "content-type": "application/gpx+xml" } });
+      const response = await fetch(`/api/routes/analyze?name=${encodeURIComponent(name || file.name.replace(/\.gpx$/iu, ""))}`, { method: "POST", body: await file.arrayBuffer(), headers: { accept: "application/json", "content-type": "application/gpx+xml" }, signal: controller.signal });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Route analysis failed.");
       if (!isRouteAnalysis(payload)) throw new Error("The route service returned an unexpected response.");
+      if (!isCurrentRequest("route", controller)) return;
       setRoute(payload); setTerrain(null); setHazard(null); setRouteWeather(null); setBriefing(null); setSelectedWeatherSegmentId(""); setStage("draft");
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Route analysis failed."); }
-    finally { setBusy(false); }
+    } catch (requestError) {
+      if (!isAbortError(requestError) && isCurrentRequest("route", controller)) setError(requestError instanceof Error ? requestError.message : "Route analysis failed.");
+    }
+    finally { if (finishRequest("route", controller)) setBusy(false); }
   }
 
   async function analyzeTerrain() {
     if (!route) return;
+    requestControllersRef.current.briefing?.abort();
+    delete requestControllersRef.current.briefing;
+    setBriefingBusy(false); setBriefing(null); setStage("draft");
+    const revision = routeRevisionRef.current;
+    const controller = beginRequest("terrain");
     setTerrainBusy(true); setError(null);
     try {
-      const response = await fetch("/api/hazards/analyze", { method: "POST", body: JSON.stringify(route), headers: { "content-type": "application/json" } });
+      const response = await fetch("/api/hazards/analyze", { method: "POST", body: JSON.stringify(route), headers: { "content-type": "application/json" }, signal: controller.signal });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Hazard analysis failed.");
       if (!isHazardAnalysis(payload)) throw new Error("The hazard service returned an unexpected response.");
+      if (!isCurrentRequest("terrain", controller) || routeRevisionRef.current !== revision) return;
       setHazard(payload); setTerrain(payload.terrain);
-      setBriefing(null);
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Hazard analysis failed."); }
-    finally { setTerrainBusy(false); }
+    } catch (requestError) {
+      if (!isAbortError(requestError) && isCurrentRequest("terrain", controller)) setError(requestError instanceof Error ? requestError.message : "Hazard analysis failed.");
+    }
+    finally { if (finishRequest("terrain", controller)) setTerrainBusy(false); }
   }
 
   async function analyzeWeather() {
     if (!route) return;
+    requestControllersRef.current.briefing?.abort();
+    delete requestControllersRef.current.briefing;
+    setBriefingBusy(false); setBriefing(null); setStage("draft");
+    const revision = routeRevisionRef.current;
+    const controller = beginRequest("weather");
     setWeatherBusy(true); setError(null);
     try {
-      const response = await fetch("/api/weather/route", { method: "POST", body: JSON.stringify(route), headers: { "content-type": "application/json" } });
+      const response = await fetch("/api/weather/route", { method: "POST", body: JSON.stringify(route), headers: { "content-type": "application/json" }, signal: controller.signal });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Route weather analysis failed.");
       if (!isRouteWeatherAnalysis(payload)) throw new Error("The weather service returned an unexpected response.");
+      if (!isCurrentRequest("weather", controller) || routeRevisionRef.current !== revision) return;
       setRouteWeather(payload); setSelectedWeatherSegmentId(payload.segments[0]?.segmentId ?? "");
-      setBriefing(null);
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Route weather analysis failed."); }
-    finally { setWeatherBusy(false); }
+    } catch (requestError) {
+      if (!isAbortError(requestError) && isCurrentRequest("weather", controller)) setError(requestError instanceof Error ? requestError.message : "Route weather analysis failed.");
+    }
+    finally { if (finishRequest("weather", controller)) setWeatherBusy(false); }
   }
 
   async function createBriefing() {
     if (!route) return;
+    const revision = routeRevisionRef.current;
+    const controller = beginRequest("briefing");
     setBriefingBusy(true); setError(null);
     try {
       const request = { route: { name: route.name, distanceKm: route.summary.distanceKm, maximumElevationM: route.summary.maximumElevationM }, weather: routeWeather, hazards: hazard, satellite: satelliteScene?.cloudCoverPercent === null || !satelliteScene ? null : { sceneId: satelliteScene.sceneId, capturedAt: satelliteScene.capturedAt, cloudCoverPercent: satelliteScene.cloudCoverPercent, groundSampleDistanceM: satelliteScene.groundSampleDistanceM } };
-      const response = await fetch("/api/decision/briefing", { method: "POST", body: JSON.stringify(request), headers: { "content-type": "application/json" } });
+      const response = await fetch("/api/decision/briefing", { method: "POST", body: JSON.stringify(request), headers: { "content-type": "application/json" }, signal: controller.signal });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Evidence briefing failed.");
       if (!isDecisionBriefing(payload)) throw new Error("The decision service returned an unexpected response.");
+      if (!isCurrentRequest("briefing", controller) || routeRevisionRef.current !== revision) return;
       setBriefing(payload);
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Evidence briefing failed."); }
-    finally { setBriefingBusy(false); }
+      setStage("draft");
+    } catch (requestError) {
+      if (!isAbortError(requestError) && isCurrentRequest("briefing", controller)) setError(requestError instanceof Error ? requestError.message : "Evidence briefing failed.");
+    }
+    finally { if (finishRequest("briefing", controller)) setBriefingBusy(false); }
   }
 
   async function exportKmz() {
@@ -306,7 +384,7 @@ export function RoutePlanner() {
 
   function publishPackage() {
     if (!route || stage !== "review") return;
-    const manifest = { ...route, terrain, hazard, routeWeather, briefing, status: "published", publishedAt: new Date().toISOString(), notice: "Immutable export package. Shared server publication requires authenticated expedition access." };
+    const manifest = { ...route, terrain, hazard, routeWeather, briefing, status: "published", publishedAt: new Date().toISOString(), notice: "Immutable review export. Catalyst retains source analysis evidence separately when backend persistence is available." };
     downloadBlob(new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }), `${route.name.replace(/[^a-z0-9-]+/giu, "-")}-plan.json`);
     setStage("published");
   }
@@ -317,8 +395,8 @@ export function RoutePlanner() {
       <div className="route-console">
         {restoredPlan ? <div className="route-saved-state" role="status"><CheckCircle2 aria-hidden="true" /><p><strong>Saved browser plan restored.</strong> Its attached evidence keeps the original source times; refresh each live layer when connected.</p></div> : null}
         <form className="route-upload" onSubmit={(event) => { event.preventDefault(); void analyze(); }}>
-          <div><label htmlFor="route-name">Route name</label><input id="route-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={180} placeholder="Kinshofer route" /></div>
-          <div><label htmlFor="route-file">GPX file</label><input id="route-file" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></div>
+          <div><label htmlFor="route-name">Route name</label><input id="route-name" name="routeName" autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} maxLength={180} placeholder="Kinshofer route" /></div>
+          <div><label htmlFor="route-file">GPX file</label><input id="route-file" name="routeFile" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></div>
           <button className="button button--primary" type="submit" disabled={busy || !file}><Upload aria-hidden="true" />{busy ? "Working…" : "Analyze route"}</button>
         </form>
         {error ? <div className="route-alert" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>Route action unavailable</strong><p>{error}</p></div></div> : null}
@@ -330,7 +408,7 @@ export function RoutePlanner() {
           {terrain ? <div className="terrain-analysis"><header><div className="weather-panel-title"><Layers3 aria-hidden="true" /><div><span className="data-label">Live terrain evidence</span><h3>Route–slope intersections</h3></div></div><div><span>{terrain.source.name} {terrain.source.dataset}</span><span>{terrain.raster.effectiveResolutionM} m effective sample · {terrain.raster.validPixelPercent}% valid cells</span></div></header><TerrainPlanView route={route} terrain={terrain} /><div className="terrain-bands" aria-label="Slope classifications">{terrain.intersections.map((intersection) => <article key={intersection.segmentId}><div><strong>{intersection.segmentName}</strong><StatusBadge tone={terrainTone(intersection.slopeClass)}>{intersection.slopeClass}</StatusBadge></div><div className="terrain-band" data-slope={intersection.slopeClass}><span style={{ width: `${Math.min(100, (intersection.maximumTerrainSlopeDegrees ?? 0) / 60 * 100)}%` }} /></div><dl><div><dt>Average</dt><dd>{routeValue(intersection.averageTerrainSlopeDegrees, "°", 1)}</dd></div><div><dt>Maximum</dt><dd>{routeValue(intersection.maximumTerrainSlopeDegrees, "°", 1)}</dd></div><div><dt>Samples</dt><dd>{intersection.sampledPointCount}</dd></div></dl><p>{intersection.interpretation}</p></article>)}</div><footer><AlertTriangle aria-hidden="true" /><p>{terrain.notice} Snowpack and weekly SAR change detection are not included in this terrain result.</p></footer></div> : null}
           {hazard ? <div className="hazard-analysis"><header><div className="weather-panel-title"><Layers3 aria-hidden="true" /><div><span className="data-label">Terrain hazard layers</span><h3>Screening zones & route intersections</h3></div></div><div><span>{hazard.source.dataset} · slope, aspect, curvature, D8 flow</span><span>{hazard.zones.features.length} bounded GeoJSON zones · {new Date(hazard.retrievedAt).toLocaleString()}</span></div></header><HazardPlanView key={hazard.retrievedAt} route={route} hazard={hazard} /><footer><AlertTriangle aria-hidden="true" /><p>{hazard.notice}</p></footer></div> : null}
           {briefing ? <DecisionBriefingView briefing={briefing} /> : null}
-          <div className="route-publication"><div><span className="data-label">Plan workflow</span><ol aria-label="Plan status"><li data-active={stage === "draft"}>Draft</li><li data-active={stage === "review"}>Review</li><li data-active={stage === "published"}>Published package</li></ol><p>{stage === "published" ? `Package created${publishedAt ? ` in this session at ${new Date(publishedAt).toLocaleTimeString()}` : ""}. Server sharing remains unavailable until authenticated expedition access is enabled.` : "Review freezes the analyzed data before an immutable JSON package is created. This browser session does not publish to the shared database."}</p></div><div className="route-actions"><button className="button button--secondary" type="button" onClick={() => void analyzeWeather()} disabled={weatherBusy}>{weatherBusy ? "Reading forecast…" : routeWeather ? "Refresh weather" : "Analyze weather"}</button><button className="button button--secondary" type="button" onClick={() => void analyzeTerrain()} disabled={terrainBusy}>{terrainBusy ? "Deriving layers…" : hazard ? "Refresh hazards" : "Analyze hazards"}</button><button className="button button--secondary" type="button" onClick={() => void createBriefing()} disabled={briefingBusy}>{briefingBusy ? "Synthesizing evidence…" : briefing ? "Refresh briefing" : "Generate briefing"}</button><button className="button button--secondary" type="button" onClick={() => void exportKmz()} disabled={busy}><Download aria-hidden="true" />Export KMZ</button>{stage === "draft" ? <button className="button button--primary" type="button" onClick={() => setStage("review")}><FileCheck2 aria-hidden="true" />Review draft</button> : stage === "review" ? <button className="button button--primary" type="button" onClick={publishPackage}><Download aria-hidden="true" />Publish package</button> : null}</div></div>
+          <div className="route-publication"><div><span className="data-label">Plan workflow</span><ol aria-label="Plan status"><li data-active={stage === "draft"}>Draft</li><li data-active={stage === "review"}>Review</li><li data-active={stage === "published"}>Published package</li></ol><p>{stage === "published" ? `Review package created${publishedAt ? ` in this session at ${new Date(publishedAt).toLocaleTimeString()}` : ""}. The source analysis evidence is retained separately by Catalyst.` : "Review freezes the analyzed data before an immutable JSON handoff package is created."}</p></div><div className="route-actions"><button className="button button--secondary" type="button" onClick={() => void analyzeWeather()} disabled={weatherBusy}>{weatherBusy ? "Reading forecast…" : routeWeather ? "Refresh weather" : "Analyze weather"}</button><button className="button button--secondary" type="button" onClick={() => void analyzeTerrain()} disabled={terrainBusy}>{terrainBusy ? "Deriving layers…" : hazard ? "Refresh hazards" : "Analyze hazards"}</button><button className="button button--secondary" type="button" onClick={() => void createBriefing()} disabled={briefingBusy || terrainBusy || weatherBusy}>{briefingBusy ? "Synthesizing evidence…" : briefing ? "Refresh briefing" : "Generate briefing"}</button><button className="button button--secondary" type="button" onClick={() => void exportKmz()} disabled={busy}><Download aria-hidden="true" />Export KMZ</button>{stage === "draft" ? <button className="button button--primary" type="button" onClick={() => setStage("review")}><FileCheck2 aria-hidden="true" />Review draft</button> : stage === "review" ? <button className="button button--primary" type="button" onClick={publishPackage}><Download aria-hidden="true" />Publish package</button> : null}</div></div>
         </> : <div className="route-empty"><RouteIcon aria-hidden="true" /><strong>No route analyzed</strong><p>Upload a GPX 1.x file up to 5 MB. Its original coordinates and elevations remain the source of record.</p></div>}
       </div>
     </section>

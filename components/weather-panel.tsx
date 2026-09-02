@@ -135,8 +135,8 @@ export function WeatherPanel() {
       <div className="weather-section__heading">
         <div><p className="eyebrow">Live mountain weather</p><h2 id="weather-title">Read the window.<br /><em>See what limits it.</em></h2></div>
         <div>
-          <StatusBadge tone={snapshot?.freshness === "current" ? "success" : snapshot?.freshness === "offline" || error ? "critical" : "unknown"}>
-            {snapshot?.freshness === "current" ? "Current" : snapshot?.freshness === "offline" ? "Offline · last known" : error ? "Unavailable" : "Connecting"}
+          <StatusBadge tone={error ? snapshot ? "warning" : "critical" : snapshot?.freshness === "current" ? "success" : snapshot?.freshness === "offline" ? "critical" : "unknown"}>
+            {error ? snapshot ? "Refresh failed · last known" : "Unavailable" : snapshot?.freshness === "current" ? "Current" : snapshot?.freshness === "offline" ? "Offline · last known" : "Connecting"}
           </StatusBadge>
           <p>Ten-day ECMWF guidance normalized through Catalyst. Window scores explain threshold pressure; the expedition leader makes the decision.</p>
           <button className="button button--secondary" type="button" onClick={() => void loadWeather()} disabled={loading}><RefreshCw aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh forecast"}</button>

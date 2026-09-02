@@ -1,7 +1,7 @@
 # QGIS Integration Record
 
 > Historical GPS fixture record. The GIS MVP direction is now documented in
-> [SATELLITE_GIS_MVP.md](SATELLITE_GIS_MVP.md): MapLibre in the browser,
+> [SATELLITE_GIS_MVP.md](SATELLITE_GIS_MVP.md): ArcGIS SceneView in the browser,
 > Copernicus satellite data through the Catalyst backend, PostGIS for spatial
 > application records, and QGIS Desktop as an optional analyst tool.
 

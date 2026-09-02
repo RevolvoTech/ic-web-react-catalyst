@@ -22,7 +22,148 @@ test("live weather is presented with source and human-decision context", async (
   await expect(page.getByText("Decision support · Human review required")).toBeVisible();
 });
 
+test("failed live refreshes identify retained weather and satellite data as last known", async ({ page }) => {
+  let weatherRequests = 0;
+  let satelliteRequests = 0;
+  await page.route("**/api/weather/snapshot**", async (route) => {
+    weatherRequests += 1;
+    if (weatherRequests === 1) return route.continue();
+    return route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { message: "Weather test outage." } }),
+    });
+  });
+  await page.route("**/api/satellite/catalog**", async (route) => {
+    satelliteRequests += 1;
+    if (satelliteRequests === 1) return route.continue();
+    return route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { message: "Satellite test outage." } }),
+    });
+  });
+
+  await page.goto("/demo");
+  const weather = page.locator(".weather-section");
+  const satellite = page.locator(".satellite-experience");
+  await expect(weather.getByText("Current", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(satellite.getByText("Live catalogue", { exact: true })).toBeVisible({ timeout: 20_000 });
+
+  await weather.getByRole("button", { name: "Refresh forecast" }).click();
+  await satellite.getByRole("button", { name: "Refresh scenes" }).click();
+
+  await expect(weather.getByText("Refresh failed · last known", { exact: true })).toBeVisible();
+  await expect(weather.getByText("Forecast unavailable", { exact: true })).toBeVisible();
+  await expect(satellite.getByText("Refresh failed · last known", { exact: true })).toBeVisible();
+  await expect(satellite.getByText("Live catalogue unavailable", { exact: true })).toBeVisible();
+});
+
+test("a late processed-image response cannot attach to a newly selected scene", async ({ page }) => {
+  const bbox = [76.48, 35.7, 76.56, 35.78];
+  const scene = (id: string, capturedAt: string) => ({
+    id,
+    collection: "sentinel-2-l2a",
+    capturedAt,
+    publishedAt: capturedAt,
+    platform: "sentinel-2b",
+    groundSampleDistanceM: 10,
+    cloudCoverPercent: 4,
+    snowCoverPercent: 30,
+    bbox,
+    thumbnailUrl: null,
+  });
+  await page.route("**/api/satellite/catalog**", (route) => route.fulfill({ json: {
+    schemaVersion: "catalyst.satellite.catalog.v1",
+    source: {
+      name: "Copernicus Data Space Ecosystem",
+      collection: "Sentinel-2 Level-2A",
+      protocol: "STAC 1.1.0",
+      catalogUrl: "https://catalogue.dataspace.copernicus.eu/stac",
+    },
+    query: { bbox, from: "2026-07-01T00:00:00.000Z", to: "2026-09-01T00:00:00.000Z", maxCloudCoverPercent: 30, limit: 8 },
+    scenes: [
+      scene("S2B_MSIL2A_20260829T053639_N0512_R005_T43SFV_20260829T091959", "2026-08-29T05:36:39.024Z"),
+      scene("S2A_MSIL2A_20260820T053641_N0512_R005_T43SFV_20260820T091959", "2026-08-20T05:36:41.024Z"),
+    ],
+    retrievedAt: "2026-09-01T12:00:00.000Z",
+    attribution: "Copernicus Sentinel data",
+    notice: "Decision support only.",
+  } }));
+  await page.route("**/api/satellite/render**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("processed-scene-one") });
+  });
+
+  await page.goto("/demo");
+  const satellite = page.locator(".satellite-experience");
+  const scenes = satellite.locator(".satellite-scene-list button");
+  await expect(scenes).toHaveCount(2);
+  const renderRequest = page.waitForRequest("**/api/satellite/render**");
+  await satellite.getByRole("button", { name: "Load processed image" }).click();
+  await renderRequest;
+  await scenes.nth(1).click();
+  await page.waitForTimeout(700);
+
+  await expect(scenes.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(satellite.locator(".satellite-preview__stamp span").first()).toHaveText("Catalogue quicklook");
+});
+
+test("late route evidence cannot attach to a replacement route", async ({ page }) => {
+  await page.route("**/api/weather/route", async (route) => {
+    const analyzedRoute = route.request().postDataJSON() as {
+      segments: { id: string; name: string }[];
+      points: { latitude: number; longitude: number; elevationM: number | null }[];
+    };
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.fulfill({ json: {
+      schemaVersion: "catalyst.weather.route.v1",
+      mode: "live",
+      source: { name: "Open-Meteo", model: "ECMWF IFS 0.25°", license: "CC BY 4.0", attributionUrl: "https://open-meteo.com/" },
+      retrievedAt: "2026-09-01T12:00:00.000Z",
+      forecastWindowHours: 24,
+      segments: analyzedRoute.segments.map((segment, index) => ({
+        segmentId: segment.id,
+        segmentName: segment.name,
+        representative: {
+          latitude: analyzedRoute.points[index]?.latitude ?? 35.22,
+          longitude: analyzedRoute.points[index]?.longitude ?? 74.57,
+          elevationM: analyzedRoute.points[index]?.elevationM ?? null,
+          altitudeBand: "7,000–8,000 m band",
+        },
+        thresholdWindKmh: 65,
+        forecastWindowHours: 24,
+        peakWindKmh: 40,
+        peakGustKmh: 50,
+        status: "within-threshold",
+        explanation: "Below the configured advisory threshold.",
+      })),
+      notice: "Decision support only.",
+    } });
+  });
+
+  await page.goto("/demo");
+  const route = page.locator(".route-section");
+  const upload = async (routeName: string) => {
+    await route.getByLabel("Route name").fill(routeName);
+    await route.getByLabel("GPX file").setInputFiles({ name: `${routeName}.gpx`, mimeType: "application/gpx+xml", buffer: Buffer.from(gpx) });
+    await route.getByRole("button", { name: "Analyze route" }).click();
+    await expect(route.getByRole("heading", { name: routeName })).toBeVisible();
+  };
+
+  await upload("First route");
+  const weatherRequest = page.waitForRequest("**/api/weather/route");
+  await route.getByRole("button", { name: "Analyze weather" }).click();
+  await weatherRequest;
+  await upload("Replacement route");
+  await page.waitForTimeout(1_000);
+
+  await expect(route.getByRole("heading", { name: "Replacement route" })).toBeVisible();
+  await expect(route.getByRole("heading", { name: "Altitude-aware wind evidence" })).toHaveCount(0);
+});
+
 test("a GPX route becomes a reviewable altitude-aware weather plan without inventing terrain data", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/hazards/analyze", async (interception) => {
     const analyzedRoute = interception.request().postDataJSON() as { segments: { id: string; name: string }[] };

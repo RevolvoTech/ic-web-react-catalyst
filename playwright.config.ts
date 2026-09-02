@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const websitePort = process.env.PLAYWRIGHT_WEBSITE_PORT ?? "3000";
+const websitePort = process.env.PLAYWRIGHT_WEBSITE_PORT ?? "3100";
 const websiteUrl = `http://127.0.0.1:${websitePort}`;
+const isolatedBrowserTestPattern = /(3D Earth pans|ArcGIS scene overlays|Platform, GIS, and Demo sections)/;
 
 export default defineConfig({
   testDir: "./tests",
@@ -9,7 +10,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // ArcGIS SceneView uses a real WebGL context. Serial browser execution keeps
+  // local and CI verification representative instead of exhausting GPU/RAM by
+  // starting several independent 3D scenes at once.
+  workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: websiteUrl,
@@ -19,6 +23,12 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      grepInvert: isolatedBrowserTestPattern,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "browser-heavy",
+      grep: isolatedBrowserTestPattern,
       use: { ...devices["Desktop Chrome"] },
     },
   ],
@@ -37,12 +47,13 @@ export default defineConfig({
     },
     {
       name: "Catalyst website",
-      command: `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${websitePort}`,
+      command: `npm run build && node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port ${websitePort}`,
       url: websiteUrl,
       env: {
         CATALYST_BACKEND_URL: "http://127.0.0.1:4000",
+        GEOCODER_ADAPTER: "fixture",
       },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
   ],
