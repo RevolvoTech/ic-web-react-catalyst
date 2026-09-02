@@ -14,32 +14,37 @@
 }
 
 .demo-intro h1,
-.demo-intro--secondary h2 {
+.demo-intro h2 {
   margin-bottom: 0;
   font-size: clamp(3rem, 2rem + 5vw, 7rem);
   line-height: 0.88;
 }
 
 .demo-intro h1 em,
-.demo-intro--secondary h2 em {
+.demo-intro h2 em {
   color: var(--color-action);
   font-style: normal;
 }
 
-.demo-intro--secondary {
-  margin-top: clamp(6rem, 11vw, 11rem);
-  border-top: 1px solid var(--color-border-strong);
-}
-
 .satellite-experience {
-  padding-top: var(--header-height);
+  padding-bottom: clamp(7rem, 12vw, 12rem);
   background:
     radial-gradient(circle at 70% 8%, color-mix(in srgb, var(--color-information) 5%, transparent), transparent 24rem),
     var(--color-canvas);
 }
 
 .satellite-intro {
+  border-top: 1px solid var(--color-border-strong);
   padding-top: clamp(5rem, 9vw, 8rem);
+}
+
+.earth-intro {
+  gap: clamp(2rem, 7vw, 7rem);
+  padding-block: clamp(3rem, 6vw, 5.5rem) clamp(2rem, 4vw, 3.5rem);
+}
+
+.earth-intro h1 {
+  font-size: clamp(2.8rem, 2rem + 4vw, 6rem);
 }
 
 .satellite-console {
@@ -378,25 +383,34 @@
 }
 
 .scenario-section {
-  padding-block: 1.5rem;
+  margin-top: clamp(4rem, 8vw, 7rem);
+  padding-block: clamp(2rem, 4vw, 3.5rem) 1.5rem;
   border-top: 1px solid var(--color-border);
 }
 
 .scenario-section__heading {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(18rem, 0.7fr);
+  align-items: end;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: clamp(2rem, 7vw, 7rem);
+  margin-bottom: 1.5rem;
 }
 
 .scenario-section__heading p {
   margin: 0;
 }
 
-.scenario-section__heading > p:last-child {
+.scenario-section__heading h2 {
+  margin: 0.45rem 0 0;
+  font-size: clamp(1.8rem, 1.4rem + 1.5vw, 3rem);
+  line-height: 1;
+}
+
+.scenario-section__heading > p {
+  max-width: 38rem;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.875rem;
 }
 
 .scenario-switcher {
@@ -543,6 +557,10 @@
   background-size: 72px 72px;
   mix-blend-mode: screen;
   opacity: 0.18;
+}
+
+.operations-console--primary {
+  margin-top: 0;
 }
 
 .qgis-map__busy {
@@ -1076,6 +1094,10 @@
 
 @media (max-width: 48rem) {
   .demo-intro {
+    grid-template-columns: 1fr;
+  }
+
+  .scenario-section__heading {
     grid-template-columns: 1fr;
   }
 
@@ -2518,7 +2540,11 @@
 .decision-evidence-grid > section:first-child header svg { color: var(--color-success); }
 .decision-evidence-grid > section:last-child header svg { color: var(--color-warning); }
 .decision-evidence-grid header h4,
-.decision-next header h4 { font-size: var(--text-label-size); }
+.decision-next header h4 {
+  margin: 0;
+  font-size: var(--text-label-size);
+  line-height: 1.2;
+}
 .decision-evidence-grid header strong { margin-left: auto; font-family: var(--font-data); }
 
 .decision-evidence-grid ul,

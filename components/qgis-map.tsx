@@ -450,7 +450,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         ref={containerRef}
         className="qgis-map__surface"
         role="region"
-        aria-label="Interactive 3D Earth with simulated GPS route overlay"
+        aria-label="Interactive 3D Earth with expedition data layers"
       />
       <div className="qgis-map__grid" aria-hidden="true" />
       <div className="qgis-map__center-marker" aria-hidden="true"><span /><span /></div>

@@ -300,6 +300,8 @@ export function MotionOrchestrator() {
     const scanForTriggers = () => {
       revealRules.forEach((rule, ruleIndex) => {
         document.querySelectorAll<HTMLElement>(rule.trigger).forEach((trigger, triggerIndex) => {
+          const demoExperience = trigger.closest<HTMLElement>(".demo-experience");
+          if (demoExperience && demoExperience.dataset.motionReady !== "true") return;
           if (observedTriggers[ruleIndex].has(trigger)) return;
           observedTriggers[ruleIndex].add(trigger);
           registerTrigger(rule, trigger, triggerIndex);
@@ -312,7 +314,12 @@ export function MotionOrchestrator() {
         secondFrame = window.requestAnimationFrame(() => {
           scanForTriggers();
           mutationObserver = new MutationObserver(() => scanForTriggers());
-          mutationObserver.observe(document.body, { childList: true, subtree: true });
+          mutationObserver.observe(document.body, {
+            attributeFilter: ["data-motion-ready"],
+            attributes: true,
+            childList: true,
+            subtree: true,
+          });
         });
       });
     };

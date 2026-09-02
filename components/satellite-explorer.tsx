@@ -209,16 +209,16 @@ export function SatelliteExplorer() {
     <div className="satellite-experience">
       <section className="demo-intro shell satellite-intro">
         <div>
-          <p className="eyebrow">Live satellite intelligence</p>
-          <h1>See the terrain.<br /><em>Know the source.</em></h1>
+          <p className="eyebrow">Copernicus evidence layer</p>
+          <h2>Inspect the image.<br /><em>Know its limits.</em></h2>
         </div>
         <div className="demo-intro__copy">
           <StatusBadge tone={catalogError ? catalog ? "warning" : "critical" : catalog ? "information" : "unknown"}>
             {catalogError ? catalog ? "Refresh failed · last known" : "Unavailable" : catalog ? "Live catalogue" : "Connecting"}
           </StatusBadge>
           <p>
-            Catalyst searches the live Copernicus Sentinel-2 catalogue.
-            Imagery supports planning and awareness; it does not prove route or hazard safety.
+            Select recent Sentinel-2 acquisitions to attach dated satellite evidence to the route
+            briefing. ArcGIS renders the 3D Earth above; Copernicus supplies this imagery layer.
           </p>
         </div>
       </section>

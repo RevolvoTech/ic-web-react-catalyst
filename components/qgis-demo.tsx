@@ -97,12 +97,19 @@ export function QgisDemo() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const experienceRef = useRef<HTMLDivElement>(null);
   const scenario = scenarioFromSearch(searchParams.get("state"));
   const [snapshot, setSnapshot] = useState<QgisSnapshot | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const requestSequence = useRef(0);
+
+  useEffect(() => {
+    const experience = experienceRef.current;
+    experience?.setAttribute("data-motion-ready", "true");
+    return () => experience?.removeAttribute("data-motion-ready");
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -151,49 +158,29 @@ export function QgisDemo() {
   }
 
   return (
-    <div className="demo-experience">
-      <section className="demo-intro demo-intro--secondary shell">
+    <div ref={experienceRef} className="demo-experience">
+      <section className="demo-intro earth-intro shell">
         <div>
-          <p className="eyebrow">GPS state preview</p>
-          <h2>Read the position.<br /><em>Judge the signal.</em></h2>
+          <p className="eyebrow">Global GIS workspace</p>
+          <h1>Explore the Earth.<br /><em>Layer the evidence.</em></h1>
         </div>
         <div className="demo-intro__copy">
-          <StatusBadge tone="simulated">Simulated</StatusBadge>
+          <StatusBadge tone="information">ArcGIS 3D</StatusBadge>
           <p>
-            Explore how current, stale, offline, empty, and unavailable position states appear in
-            the command view. This is not live tracker data.
+            Pan from a global view into mountain terrain, then compare route, position, weather,
+            hazard, and Copernicus evidence without treating any layer as a safety declaration.
           </p>
         </div>
       </section>
 
-      <section className="scenario-section shell" aria-labelledby="scenario-title">
-        <div className="scenario-section__heading">
-          <p id="scenario-title" className="data-label">Select a data condition</p>
-          <p>Choose a condition to update the console.</p>
-        </div>
-        <div className="scenario-switcher" role="group" aria-labelledby="scenario-title">
-          {scenarios.map((item) => (
-            <m.button
-              key={item.id}
-              type="button"
-              aria-pressed={scenario === item.id}
-              onClick={() => selectScenario(item.id)}
-              whileTap={{ scale: 0.985 }}
-            >
-              <span>{item.label}</span>
-              <small>{item.description}</small>
-            </m.button>
-          ))}
-        </div>
-      </section>
-
-      <section className="operations-console shell" aria-labelledby="console-title">
+      <section className="operations-console operations-console--primary shell" aria-labelledby="console-title">
         <header className="operations-console__header">
           <div>
-            <span className="data-label">Expedition</span>
-            <h2 id="console-title">{snapshot?.expedition.name ?? "Karakoram Pilot"}</h2>
+            <span className="data-label">Global scene · expedition area of interest</span>
+            <h2 id="console-title">{snapshot?.expedition.name ?? "Karakoram Pilot"} · 3D terrain</h2>
           </div>
           <div className="operations-console__statuses" aria-live="polite">
+            <StatusBadge tone="information">ArcGIS 3D</StatusBadge>
             {snapshot?.mode === "live" ? (
               <StatusBadge tone="information">Live</StatusBadge>
             ) : (
@@ -320,9 +307,36 @@ export function QgisDemo() {
 
         <footer className="operations-console__footer">
           <span>Position data: {snapshot?.mode === "live" ? "Live" : "Simulated"}</span>
-          <span>Map: ArcGIS SceneView · global 3D</span>
+          <span>Map: ArcGIS SceneView · World Imagery + World Elevation</span>
           <span>Coordinates: WGS84</span>
         </footer>
+      </section>
+
+      <section className="scenario-section shell" aria-labelledby="scenario-title">
+        <div className="scenario-section__heading">
+          <div>
+            <p className="eyebrow">GPS state preview</p>
+            <h2 id="scenario-title">Simulate field connection states.</h2>
+          </div>
+          <p>
+            Choose a condition to preview current, stale, offline, empty, and unavailable tracker
+            data. These states use simulated GPS data until hardware integration begins.
+          </p>
+        </div>
+        <div className="scenario-switcher" role="group" aria-labelledby="scenario-title">
+          {scenarios.map((item) => (
+            <m.button
+              key={item.id}
+              type="button"
+              aria-pressed={scenario === item.id}
+              onClick={() => selectScenario(item.id)}
+              whileTap={{ scale: 0.985 }}
+            >
+              <span>{item.label}</span>
+              <small>{item.description}</small>
+            </m.button>
+          ))}
+        </div>
       </section>
 
       <section className="track-section shell">

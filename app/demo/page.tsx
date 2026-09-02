@@ -23,12 +23,12 @@ function DemoFallback() {
 export default function DemoPage() {
   return (
     <>
-      <SatelliteExplorer />
-      <WeatherPanel />
-      <RoutePlanner />
       <Suspense fallback={<DemoFallback />}>
         <QgisDemo />
       </Suspense>
+      <WeatherPanel />
+      <RoutePlanner />
+      <SatelliteExplorer />
     </>
   );
 }

@@ -18,7 +18,7 @@ const routes = [
   },
   {
     path: "/demo",
-    h1: /See the terrain\.\s+Know the source\./i,
+    h1: /Explore the Earth\.\s+Layer the evidence\./i,
     currentNavigationItem: null,
   },
 ] as const;
@@ -191,7 +191,7 @@ test.describe("QGIS demo state lab", () => {
   test("3D Earth pans, updates its center label, and can return to the pilot area", async ({ page }) => {
     test.setTimeout(90_000);
     await waitForCurrentFixture(page);
-    const map = page.getByRole("region", { name: "Interactive 3D Earth with simulated GPS route overlay" });
+    const map = page.getByRole("region", { name: "Interactive 3D Earth with expedition data layers" });
     const mapShell = page.locator(".qgis-map");
     const centerLabel = page.locator(".qgis-map__label");
     await map.scrollIntoViewIfNeeded();
@@ -554,7 +554,7 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
     },
     {
       path: "/demo",
-      top: ".satellite-intro",
+      top: ".earth-intro",
       replayTarget: ".track-list > div:last-child",
       covered: [
         ".scenario-switcher > button",
