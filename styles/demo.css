@@ -583,13 +583,276 @@
 
 .qgis-map__label {
   top: 1rem;
-  left: 1rem;
+  right: 1rem;
   display: flex;
   width: min(28rem, calc(100% - 6.75rem));
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.75rem 0.85rem;
   overflow-wrap: anywhere;
+}
+
+.earth-workspace-panel {
+  position: absolute;
+  z-index: 5;
+  top: 1rem;
+  bottom: 4.6rem;
+  left: 1rem;
+  width: min(19rem, calc(100% - 7rem));
+  pointer-events: none;
+}
+
+.earth-workspace-panel__toggle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  pointer-events: auto;
+}
+
+.earth-workspace-panel[data-open] .earth-workspace-panel__toggle {
+  left: calc(100% + 0.5rem);
+}
+
+.earth-workspace-panel__toggle span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.earth-workspace-panel__toggle svg {
+  width: 1.1rem;
+}
+
+.earth-workspace-panel__content {
+  height: 100%;
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-canvas) 95%, transparent);
+  box-shadow: 0 1.25rem 3rem color-mix(in srgb, var(--color-canvas) 56%, transparent);
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+
+.earth-workspace-panel__content > header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.earth-workspace-panel__content > header strong {
+  line-height: 1.3;
+}
+
+.earth-workspace-panel__content > header small,
+.earth-panel-action small {
+  color: var(--color-text-muted);
+  font-size: var(--text-compact-size);
+  line-height: 1.35;
+}
+
+.earth-workspace-panel__waypoints {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.earth-panel-action {
+  display: flex;
+  width: 100%;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.earth-panel-action[aria-pressed="true"] {
+  border-color: var(--color-action);
+  background: color-mix(in srgb, var(--color-action) 10%, var(--color-surface));
+}
+
+.earth-panel-action:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.earth-panel-action svg {
+  width: 1.05rem;
+  flex: none;
+  color: var(--color-action);
+}
+
+.earth-panel-action span {
+  display: flex;
+  flex-direction: column;
+}
+
+.earth-panel-action strong {
+  font-size: 0.8rem;
+}
+
+.earth-workspace-panel__waypoints ol {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.earth-workspace-panel__waypoints li {
+  display: grid;
+  min-height: 2.5rem;
+  grid-template-columns: 1.5rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-text-secondary);
+  font-family: var(--font-data);
+}
+
+.earth-workspace-panel__waypoints li > span {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border: 1px solid var(--color-action);
+  color: var(--color-text);
+  font-size: 0.62rem;
+}
+
+.earth-workspace-panel__waypoints li button {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.earth-workspace-panel__waypoints li button:hover {
+  color: var(--color-critical);
+}
+
+.earth-workspace-panel__waypoints li svg {
+  width: 0.9rem;
+}
+
+.earth-workspace-panel__waypoint-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.earth-workspace-panel__waypoint-actions button {
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.earth-workspace-panel__waypoint-actions button:first-child {
+  border-color: var(--color-action);
+  background: var(--color-action);
+  color: var(--color-on-action);
+}
+
+.earth-layer-list {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.9rem 0.75rem;
+  border: 0;
+}
+
+.earth-layer-list legend {
+  padding: 0 0.25rem 0.35rem;
+}
+
+.earth-layer-list label {
+  display: grid;
+  min-height: 2.75rem;
+  grid-template-columns: 1.1rem 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding-inline: 0.3rem;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+}
+
+.earth-layer-list input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--color-action);
+}
+
+.earth-layer-list i,
+.qgis-map__legend i[data-kind="hazard"] {
+  width: 1rem;
+  height: 2px;
+  background: var(--color-unknown);
+}
+
+.earth-layer-list i[data-kind="planned"] { background: var(--color-action); }
+.earth-layer-list i[data-kind="actual"] { background: var(--color-information); }
+.earth-layer-list i[data-kind="position"] {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--color-information);
+}
+.earth-layer-list i[data-kind="hazard"],
+.qgis-map__legend i[data-kind="hazard"] {
+  height: 0.65rem;
+  border: 1px solid var(--color-critical);
+  background: color-mix(in srgb, var(--color-critical) 25%, transparent);
+}
+
+.earth-layer-list label small {
+  color: var(--color-text-muted);
+  font-family: var(--font-data);
+}
+
+.earth-workspace-panel__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-compact-size);
+  line-height: 1.4;
+}
+
+.earth-workspace-panel__hint svg {
+  width: 0.9rem;
+  flex: none;
+}
+
+.qgis-map[data-waypoint-mode] .qgis-map__surface {
+  cursor: crosshair;
 }
 
 .qgis-map__label strong {
@@ -1151,6 +1414,15 @@
     min-height: clamp(27rem, 68svh, 31rem);
   }
 
+  .earth-workspace-panel {
+    bottom: 6rem;
+    width: min(18rem, calc(100% - 5.5rem));
+  }
+
+  .qgis-map__label {
+    width: min(21rem, calc(100% - 5.75rem));
+  }
+
   .qgis-map__legend {
     display: grid;
     width: min(22rem, calc(100% - 2rem));
@@ -1170,7 +1442,19 @@
 
 @media (max-width: 28rem) {
   .qgis-map__scene-actions {
-    top: 16rem;
+    top: 4rem;
+    right: auto;
+    left: 0.65rem;
+    grid-template-columns: 2.75rem;
+  }
+
+  .earth-workspace-panel {
+    top: 0.65rem;
+    left: 0.65rem;
+  }
+
+  .qgis-map__label {
+    top: 0.65rem;
   }
 
   .scenario-switcher {

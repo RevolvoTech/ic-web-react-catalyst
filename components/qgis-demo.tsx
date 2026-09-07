@@ -176,8 +176,8 @@ export function QgisDemo() {
       <section className="operations-console operations-console--primary shell" aria-labelledby="console-title">
         <header className="operations-console__header">
           <div>
-            <span className="data-label">Global scene · expedition area of interest</span>
-            <h2 id="console-title">{snapshot?.expedition.name ?? "Karakoram Pilot"} · 3D terrain</h2>
+            <span className="data-label">Global scene · active area of interest</span>
+            <h2 id="console-title">Interactive Earth workspace · 3D terrain</h2>
           </div>
           <div className="operations-console__statuses" aria-live="polite">
             <StatusBadge tone="information">ArcGIS 3D</StatusBadge>

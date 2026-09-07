@@ -14,6 +14,14 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import {
+  formatBbox,
+  isWorkspaceAoi,
+  PILOT_AOI,
+  WORKSPACE_AOI_EVENT,
+  WORKSPACE_AOI_STORAGE_KEY,
+  type WorkspaceAoi,
+} from "@/lib/operational-workspace";
+import {
   formatPercent,
   formatSceneDate,
   isSatelliteCatalog,
@@ -21,7 +29,6 @@ import {
   type SatelliteScene,
 } from "@/lib/satellite";
 
-const PILOT_BBOX = "76.48,35.70,76.56,35.78";
 const MAX_CLOUD_COVER = 30;
 
 function isoDate(date: Date) {
@@ -73,6 +80,8 @@ function ScenePreview({ scene, renderUrl }: { scene: SatelliteScene; renderUrl: 
 
 export function SatelliteExplorer() {
   const [range] = useState(defaultRange);
+  const [aoi, setAoi] = useState<WorkspaceAoi>(PILOT_AOI);
+  const [aoiReady, setAoiReady] = useState(false);
   const [catalog, setCatalog] = useState<SatelliteCatalog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,12 +90,50 @@ export function SatelliteExplorer() {
   const [renderState, setRenderState] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
   const selectedIdRef = useRef<string | null>(null);
   const renderControllerRef = useRef<AbortController | null>(null);
+  const catalogControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(WORKSPACE_AOI_STORAGE_KEY);
+        const parsed: unknown = stored ? JSON.parse(stored) : null;
+        if (isWorkspaceAoi(parsed)) setAoi(parsed);
+      } catch {
+        // The default pilot area remains available when storage is blocked.
+      }
+      setAoiReady(true);
+    }, 0);
+    const listener = (event: Event) => {
+      const next = (event as CustomEvent<unknown>).detail;
+      if (isWorkspaceAoi(next)) {
+        catalogControllerRef.current?.abort();
+        setCatalog(null);
+        selectedIdRef.current = null;
+        setSelectedId(null);
+        setCatalogError(null);
+        setRenderUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return null;
+        });
+        setRenderState("idle");
+        setAoi(next);
+      }
+    };
+    window.addEventListener(WORKSPACE_AOI_EVENT, listener);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(WORKSPACE_AOI_EVENT, listener);
+    };
+  }, []);
 
   const loadCatalog = useCallback(async () => {
+    catalogControllerRef.current?.abort();
+    const controller = new AbortController();
+    catalogControllerRef.current = controller;
     setLoading(true);
     setCatalogError(null);
     const parameters = new URLSearchParams({
-      bbox: PILOT_BBOX,
+      bbox: formatBbox(aoi.bbox),
       from: range.from,
       to: range.to,
       cloud: String(MAX_CLOUD_COVER),
@@ -96,10 +143,12 @@ export function SatelliteExplorer() {
     try {
       const response = await fetch(`/api/satellite/catalog?${parameters}`, {
         headers: { accept: "application/json" },
+        signal: controller.signal,
       });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Satellite catalogue request failed.");
       if (!isSatelliteCatalog(payload)) throw new Error("The satellite service returned an unexpected response.");
+      if (catalogControllerRef.current !== controller) return;
       setCatalog(payload);
       const nextSelectedId = selectedIdRef.current
         && payload.scenes.some((scene) => scene.id === selectedIdRef.current)
@@ -117,19 +166,27 @@ export function SatelliteExplorer() {
       selectedIdRef.current = nextSelectedId;
       setSelectedId(nextSelectedId);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : "Satellite catalogue request failed.");
+      if (controller.signal.aborted) return;
+      if (catalogControllerRef.current === controller) {
+        setCatalogError(error instanceof Error ? error.message : "Satellite catalogue request failed.");
+      }
     } finally {
-      setLoading(false);
+      if (catalogControllerRef.current === controller) {
+        catalogControllerRef.current = null;
+        setLoading(false);
+      }
     }
-  }, [range.from, range.to]);
+  }, [aoi.bbox, range.from, range.to]);
 
   useEffect(() => {
+    if (!aoiReady) return;
     const timer = window.setTimeout(() => void loadCatalog(), 0);
     return () => window.clearTimeout(timer);
-  }, [loadCatalog]);
+  }, [aoiReady, loadCatalog]);
 
   useEffect(() => {
     return () => {
+      catalogControllerRef.current?.abort();
       renderControllerRef.current?.abort();
       if (renderUrl) URL.revokeObjectURL(renderUrl);
     };
@@ -144,10 +201,12 @@ export function SatelliteExplorer() {
       capturedAt: selectedScene.capturedAt,
       cloudCoverPercent: selectedScene.cloudCoverPercent,
       groundSampleDistanceM: selectedScene.groundSampleDistanceM,
+      bbox: aoi.bbox,
+      areaName: aoi.name,
     };
     window.localStorage.setItem("catalyst:selected-satellite-scene", JSON.stringify(detail));
     window.dispatchEvent(new CustomEvent("catalyst:satellite-scene", { detail }));
-  }, [selectedScene]);
+  }, [aoi.bbox, aoi.name, selectedScene]);
 
   async function loadProcessedImage() {
     if (!selectedScene) return;
@@ -158,7 +217,7 @@ export function SatelliteExplorer() {
     setRenderState("loading");
     const parameters = new URLSearchParams({
       sceneId: requestedSceneId,
-      bbox: PILOT_BBOX,
+      bbox: formatBbox(aoi.bbox),
       width: "1200",
       height: "1200",
     });
@@ -227,7 +286,7 @@ export function SatelliteExplorer() {
         <header className="satellite-console__header">
           <div>
             <span className="data-label">Area of interest</span>
-            <h2 id="satellite-console-title">Karakoram pilot · Sentinel-2 L2A</h2>
+            <h2 id="satellite-console-title">{aoi.name} · Sentinel-2 L2A</h2>
           </div>
           <div className="satellite-console__status" aria-live="polite">
             <button className="button button--secondary" type="button" onClick={() => void loadCatalog()} disabled={loading}>
@@ -237,7 +296,7 @@ export function SatelliteExplorer() {
         </header>
 
         <div className="satellite-query-strip" aria-label="Satellite search parameters">
-          <span><ScanSearch aria-hidden="true" /> AOI {PILOT_BBOX}</span>
+          <span><ScanSearch aria-hidden="true" /> AOI {formatBbox(aoi.bbox)}</span>
           <span><CalendarDays aria-hidden="true" /> {range.from} — {range.to}</span>
           <span><Cloud aria-hidden="true" /> ≤ {MAX_CLOUD_COVER}% cloud</span>
         </div>

@@ -1,8 +1,15 @@
 "use client";
 
 import { AlertTriangle, CloudSnow, Gauge, RefreshCw, Wind } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  isWorkspaceAoi,
+  PILOT_AOI,
+  WORKSPACE_AOI_EVENT,
+  WORKSPACE_AOI_STORAGE_KEY,
+  type WorkspaceAoi,
+} from "@/lib/operational-workspace";
 import {
   isWeatherSnapshot,
   weatherDate,
@@ -11,13 +18,6 @@ import {
   type WeatherHour,
   type WeatherSnapshot,
 } from "@/lib/weather";
-
-const WEATHER_QUERY = new URLSearchParams({
-  latitude: "35.2375",
-  longitude: "74.5892",
-  elevationM: "8126",
-  name: "Nanga Parbat summit",
-});
 
 function errorMessage(value: unknown) {
   if (typeof value !== "object" || value === null || !("error" in value)) return null;
@@ -103,29 +103,81 @@ function WindProfile({ hours }: { hours: WeatherHour[] }) {
 }
 
 export function WeatherPanel() {
+  const [aoi, setAoi] = useState<WorkspaceAoi>(PILOT_AOI);
+  const [aoiReady, setAoiReady] = useState(false);
   const [snapshot, setSnapshot] = useState<WeatherSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const weatherControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(WORKSPACE_AOI_STORAGE_KEY);
+        const parsed: unknown = stored ? JSON.parse(stored) : null;
+        if (isWorkspaceAoi(parsed)) setAoi(parsed);
+      } catch {
+        // The pilot reference remains available when browser storage is blocked.
+      }
+      setAoiReady(true);
+    }, 0);
+    const listener = (event: Event) => {
+      const next = (event as CustomEvent<unknown>).detail;
+      if (isWorkspaceAoi(next)) {
+        weatherControllerRef.current?.abort();
+        setSnapshot(null);
+        setError(null);
+        setAoi(next);
+      }
+    };
+    window.addEventListener(WORKSPACE_AOI_EVENT, listener);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(WORKSPACE_AOI_EVENT, listener);
+    };
+  }, []);
+
   const loadWeather = useCallback(async () => {
+    weatherControllerRef.current?.abort();
+    const controller = new AbortController();
+    weatherControllerRef.current = controller;
     setLoading(true);
     setError(null);
+    const query = new URLSearchParams({
+      latitude: String(aoi.latitude),
+      longitude: String(aoi.longitude),
+      elevationM: String(aoi.elevationM ?? 0),
+      name: aoi.name,
+    });
     try {
-      const response = await fetch(`/api/weather/snapshot?${WEATHER_QUERY}`, { headers: { accept: "application/json" } });
+      const response = await fetch(`/api/weather/snapshot?${query}`, {
+        headers: { accept: "application/json" },
+        signal: controller.signal,
+      });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Weather request failed.");
       if (!isWeatherSnapshot(payload)) throw new Error("The weather service returned an unexpected response.");
-      setSnapshot(payload);
+      if (weatherControllerRef.current === controller) setSnapshot(payload);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Weather request failed.");
+      if (controller.signal.aborted) return;
+      if (weatherControllerRef.current === controller) {
+        setError(requestError instanceof Error ? requestError.message : "Weather request failed.");
+      }
     } finally {
-      setLoading(false);
+      if (weatherControllerRef.current === controller) {
+        weatherControllerRef.current = null;
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [aoi]);
 
   useEffect(() => {
+    if (!aoiReady) return;
     const timer = window.setTimeout(() => void loadWeather(), 0);
     return () => window.clearTimeout(timer);
-  }, [loadWeather]);
+  }, [aoiReady, loadWeather]);
+
+  useEffect(() => () => weatherControllerRef.current?.abort(), []);
 
   const daily = useMemo(() => aggregateDaily(snapshot?.forecastHours ?? []), [snapshot]);
   const current = snapshot?.forecastHours[0] ?? null;
@@ -138,7 +190,7 @@ export function WeatherPanel() {
           <StatusBadge tone={error ? snapshot ? "warning" : "critical" : snapshot?.freshness === "current" ? "success" : snapshot?.freshness === "offline" ? "critical" : "unknown"}>
             {error ? snapshot ? "Refresh failed · last known" : "Unavailable" : snapshot?.freshness === "current" ? "Current" : snapshot?.freshness === "offline" ? "Offline · last known" : "Connecting"}
           </StatusBadge>
-          <p>Ten-day ECMWF guidance normalized through Catalyst. Window scores explain threshold pressure; the expedition leader makes the decision.</p>
+          <p>Ten-day ECMWF guidance for the active map area. Route selection updates the location automatically; window scores explain threshold pressure and leave the decision to the expedition leader.</p>
           <button className="button button--secondary" type="button" onClick={() => void loadWeather()} disabled={loading}><RefreshCw aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh forecast"}</button>
         </div>
       </div>

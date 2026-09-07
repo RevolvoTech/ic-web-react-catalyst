@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 test("live weather is presented with source and human-decision context", async ({ page }) => {
   await page.goto("/demo");
   await expect(page.getByRole("heading", { name: "Read the window. See what limits it." })).toBeVisible();
-  await expect(page.getByText("Nanga Parbat summit · 8,126 m")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Karakoram pilot area · 5,200 m")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Source Open-Meteo")).toBeVisible();
   await expect(page.getByText("Decision support · Human review required")).toBeVisible();
 });
@@ -224,6 +224,8 @@ test("a GPX route becomes a reviewable altitude-aware weather plan without inven
   await expect(route.getByRole("heading", { name: "Screening zones & route intersections" })).toBeVisible();
   await expect(route.getByRole("group", { name: "Inspect intersecting terrain zone" })).toBeVisible();
   await expect(route.getByText("Human review required", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Open map panel" }).click();
+  await expect(page.getByRole("checkbox", { name: /Terrain screening 1/ })).toBeVisible();
   await route.getByRole("button", { name: "Generate briefing" }).click();
   await expect(route.getByRole("heading", { name: "Kinshofer test route evidence briefing" })).toBeVisible();
   await expect(route.getByText("Rules-based synthesis · AI not used")).toBeVisible();

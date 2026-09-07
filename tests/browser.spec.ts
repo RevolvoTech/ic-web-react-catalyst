@@ -26,7 +26,7 @@ const routes = [
 const viewportWidths = [280, 320, 360, 390, 412, 768, 1024, 1440, 1920, 2560, 3840] as const;
 
 function scenarioGroup(page: Page) {
-  return page.getByRole("group", { name: "Select a data condition" });
+  return page.getByRole("group", { name: "Simulate field connection states." });
 }
 
 function consoleStatuses(page: Page) {
@@ -65,10 +65,9 @@ async function selectScenario(page: Page, label: string, state: string) {
 }
 
 async function expectSimulatedDisclosure(page: Page) {
-  await expect(page.locator(".demo-intro__copy").getByText("Simulated", { exact: true })).toBeVisible();
   await expect(consoleStatuses(page).getByText("Simulated", { exact: true })).toBeVisible();
   await expect(consoleStatuses(page).getByText("Live", { exact: true })).toHaveCount(0);
-  await expect(page.getByText(/This is not live tracker data/i)).toBeVisible();
+  await expect(page.getByText(/simulated GPS data until hardware integration begins/i)).toBeVisible();
 }
 
 test.describe("route structure", () => {
@@ -184,7 +183,7 @@ test.describe("QGIS demo state lab", () => {
     await expect(inspector.getByText("±12 m", { exact: true })).toBeVisible();
     await expect(inspector.getByText("Catalyst GPS simulation", { exact: true })).toBeVisible();
     await expect(inspector.getByText("Generated for demonstration", { exact: true })).toBeVisible();
-    await expect(page.getByText("Planned route", { exact: true })).toBeVisible();
+    await expect(page.locator(".qgis-map__legend").getByText("Planned route", { exact: true })).toBeVisible();
     await expect(page.getByText("Coordinates: WGS84", { exact: true })).toBeVisible();
   });
 

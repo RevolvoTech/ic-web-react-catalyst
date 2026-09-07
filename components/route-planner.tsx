@@ -5,6 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { isDecisionBriefing, type DecisionAssessment, type DecisionBriefing, type DecisionEvidence } from "@/lib/decision";
 import { isHazardAnalysis, type HazardAnalysis, type HazardRiskLevel } from "@/lib/hazard";
+import {
+  publishWorkspaceHazard,
+  publishWorkspaceRoute,
+} from "@/lib/operational-workspace";
 import { isRouteAnalysis, routeValue, type RouteAnalysis } from "@/lib/route";
 import { isRouteWeatherAnalysis, type RouteWeatherAnalysis, type RouteWeatherStatus } from "@/lib/route-weather";
 import { isTerrainAnalysis, type TerrainAnalysis, type TerrainSlopeClass } from "@/lib/terrain";
@@ -271,6 +275,8 @@ export function RoutePlanner() {
         if (stored) {
           const saved: unknown = JSON.parse(stored);
           if (typeof saved === "object" && saved !== null && "route" in saved && isRouteAnalysis(saved.route)) {
+            satelliteSceneIdRef.current = null;
+            setSatelliteScene(null);
             setRoute(saved.route);
             if ("terrain" in saved && isTerrainAnalysis(saved.terrain)) setTerrain(saved.terrain);
             if ("hazard" in saved && isHazardAnalysis(saved.hazard)) setHazard(saved.hazard);
@@ -290,6 +296,15 @@ export function RoutePlanner() {
     try { window.localStorage.setItem(SAVED_PLAN_KEY, JSON.stringify({ route, terrain, hazard, routeWeather, briefing, savedAt: new Date().toISOString() })); } catch { /* Storage quotas do not block the active plan. */ }
   }, [briefing, hazard, route, routeWeather, storageReady, terrain]);
 
+  useEffect(() => {
+    if (!route) return;
+    publishWorkspaceRoute(route);
+  }, [route]);
+
+  useEffect(() => {
+    publishWorkspaceHazard(hazard);
+  }, [hazard]);
+
   async function analyze() {
     if (!file) { setError("Choose a GPX file first."); return; }
     routeRevisionRef.current += 1;
@@ -302,6 +317,7 @@ export function RoutePlanner() {
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Route analysis failed.");
       if (!isRouteAnalysis(payload)) throw new Error("The route service returned an unexpected response.");
       if (!isCurrentRequest("route", controller)) return;
+      satelliteSceneIdRef.current = null; setSatelliteScene(null);
       setRoute(payload); setTerrain(null); setHazard(null); setRouteWeather(null); setBriefing(null); setSelectedWeatherSegmentId(""); setStage("draft");
     } catch (requestError) {
       if (!isAbortError(requestError) && isCurrentRequest("route", controller)) setError(requestError instanceof Error ? requestError.message : "Route analysis failed.");
