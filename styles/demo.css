@@ -874,45 +874,6 @@
   letter-spacing: 0.04em;
 }
 
-.qgis-map__center-marker {
-  position: absolute;
-  z-index: 3;
-  top: 50%;
-  left: 50%;
-  width: 1.75rem;
-  height: 1.75rem;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.qgis-map__center-marker::before {
-  position: absolute;
-  inset: 0.45rem;
-  border: 1px solid var(--color-snow);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-canvas) 62%, transparent);
-  content: "";
-}
-
-.qgis-map__center-marker span {
-  position: absolute;
-  background: var(--color-snow);
-}
-
-.qgis-map__center-marker span:first-child {
-  top: 50%;
-  left: 0;
-  width: 100%;
-  height: 1px;
-}
-
-.qgis-map__center-marker span:last-child {
-  top: 0;
-  left: 50%;
-  width: 1px;
-  height: 100%;
-}
-
 .qgis-map__scene-actions {
   position: absolute;
   z-index: 4;

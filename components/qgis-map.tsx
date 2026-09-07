@@ -687,7 +687,6 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         aria-label="Interactive 3D Earth with expedition data layers"
       />
       <div className="qgis-map__grid" aria-hidden="true" />
-      <div className="qgis-map__center-marker" aria-hidden="true"><span /><span /></div>
       <aside className="earth-workspace-panel" data-open={panelOpen || undefined} aria-label="Map places and layers">
         <button
           className="earth-workspace-panel__toggle"
