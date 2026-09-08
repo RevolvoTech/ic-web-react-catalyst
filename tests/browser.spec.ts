@@ -190,12 +190,21 @@ test.describe("QGIS demo state lab", () => {
   test("3D Earth pans, updates its center label, and can return to the pilot area", async ({ page }) => {
     test.setTimeout(90_000);
     await waitForCurrentFixture(page);
-    const map = page.getByRole("region", { name: "Interactive 3D Earth with expedition data layers" });
+    const map = page.getByRole("region", { name: "Interactive Earth with expedition data layers" });
     const mapShell = page.locator(".qgis-map");
     const centerLabel = page.locator(".qgis-map__label");
     await map.scrollIntoViewIfNeeded();
     await expect(mapShell).toHaveAttribute("data-map-ready", "true", { timeout: 30_000 });
     await expect(centerLabel.getByText("Karakoram map center, Gilgit-Baltistan, Pakistan", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "2D Overhead" })).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("button", { name: "3D Terrain" })).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("button", { name: "2D Overhead" }).click();
+    await expect(mapShell).toHaveAttribute("data-view-mode", "2d");
+    await expect(centerLabel.getByText(/2D overhead/)).toBeVisible();
+    await page.getByRole("button", { name: "3D Terrain" }).click();
+    await expect(mapShell).toHaveAttribute("data-view-mode", "3d");
+    await expect(centerLabel.getByText(/3D terrain/)).toBeVisible();
 
     const before = await centerLabel.locator("span").nth(1).textContent();
     const box = await map.boundingBox();
@@ -205,6 +214,13 @@ test.describe("QGIS demo state lab", () => {
     await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2 + 150, (box?.y ?? 0) + (box?.height ?? 0) / 2, { steps: 8 });
     await page.mouse.up();
     await expect.poll(() => centerLabel.locator("span").nth(1).textContent()).not.toBe(before);
+
+    const beforeRightDrag = await centerLabel.locator("span").nth(1).textContent();
+    await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2 - 120, { steps: 8 });
+    await page.mouse.up({ button: "right" });
+    await expect.poll(() => centerLabel.locator("span").nth(1).textContent()).not.toBe(beforeRightDrag);
 
     await page.getByRole("button", { name: "Return to Karakoram pilot area" }).click();
     await expect.poll(async () => {

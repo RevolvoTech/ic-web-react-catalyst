@@ -7,7 +7,6 @@ import {
   LocateFixed,
   MapPin,
   MousePointer2,
-  RotateCcw,
   Trash2,
   ZoomIn,
   ZoomOut,
@@ -35,6 +34,7 @@ interface QgisMapProps {
 }
 
 type LocationState = "idle" | "loading" | "ready" | "unavailable";
+type MapViewMode = "2d" | "3d";
 
 interface MapCenter {
   latitude: number;
@@ -106,6 +106,7 @@ type ArcGisModules = [
 
 const INITIAL_CENTER: MapCenter = { latitude: 35.742, longitude: 76.519, zoom: 11.8 };
 const ARCGIS_API_KEY = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
+const CAMERA_TILT: Record<MapViewMode, number> = { "2d": 0, "3d": 62 };
 
 const plannedRouteCoordinates = [
   [76.5082, 35.7378],
@@ -270,6 +271,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const layersRef = useRef<OperationalLayers | null>(null);
   const constructorsRef = useRef<ArcGisConstructors | null>(null);
   const waypointModeRef = useRef(false);
+  const viewModeRef = useRef<MapViewMode>("3d");
   const reduceMotion = useReducedMotion();
   const [shouldInitialize, setShouldInitialize] = useState(false);
   const [ready, setReady] = useState(false);
@@ -278,6 +280,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const [location, setLocation] = useState<MapLocation | null>(null);
   const [locationState, setLocationState] = useState<LocationState>("idle");
   const [panelOpen, setPanelOpen] = useState(true);
+  const [viewMode, setViewMode] = useState<MapViewMode>("3d");
   const [waypointMode, setWaypointMode] = useState(false);
   const [waypoints, setWaypoints] = useState<DemoWaypoint[]>([]);
   const [activeRoute, setActiveRoute] = useState<RouteAnalysis | null>(null);
@@ -292,6 +295,10 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   useEffect(() => {
     waypointModeRef.current = waypointMode;
   }, [waypointMode]);
+
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -425,6 +432,15 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           map,
           viewingMode: "global",
           qualityProfile: "high",
+          navigation: {
+            actionMap: {
+              dragPrimary: "pan",
+              dragSecondary: "zoom",
+              dragTertiary: "zoom",
+              mouseWheel: "zoom",
+            },
+            gamepad: { enabled: false },
+          },
           camera: {
             position: {
               longitude: INITIAL_CENTER.longitude,
@@ -432,8 +448,8 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
               z: 28_000,
               spatialReference: { wkid: 4326 },
             },
-            heading: 12,
-            tilt: 68,
+            heading: 0,
+            tilt: CAMERA_TILT["3d"],
           },
           environment: {
             atmosphereEnabled: true,
@@ -559,7 +575,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
 
     if ((activeRoute || waypoints.length >= 2) && routeGraphics[0]?.geometry) {
       void view.goTo(
-        { target: routeGraphics[0].geometry, tilt: 62, heading: 8 },
+        { target: routeGraphics[0].geometry, tilt: CAMERA_TILT[viewModeRef.current], heading: 0 },
         { animate: !reduceMotion, duration: reduceMotion ? 0 : 700 },
       ).catch(() => undefined);
     }
@@ -580,7 +596,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
 
     if (track?.geometry && snapshot?.track.length) {
       void view.goTo(
-        { target: track.geometry, tilt: 68, heading: 12 },
+        { target: track.geometry, tilt: CAMERA_TILT[viewModeRef.current], heading: 0 },
         { animate: !reduceMotion, duration: reduceMotion ? 0 : 600 },
       ).catch(() => undefined);
     }
@@ -609,8 +625,8 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
       {
         target,
         zoom: INITIAL_CENTER.zoom,
-        tilt: 68,
-        heading: 12,
+        tilt: CAMERA_TILT[viewModeRef.current],
+        heading: 0,
       },
       { animate: !reduceMotion, duration: reduceMotion ? 0 : 700 },
     ).catch(() => undefined);
@@ -645,11 +661,13 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     ).catch(() => undefined);
   }
 
-  function resetOrientation() {
+  function changeViewMode(nextMode: MapViewMode) {
     const view = viewRef.current;
     if (!view) return;
+    viewModeRef.current = nextMode;
+    setViewMode(nextMode);
     void view.goTo(
-      { heading: 0, tilt: 45 },
+      { heading: 0, tilt: CAMERA_TILT[nextMode] },
       { animate: !reduceMotion, duration: reduceMotion ? 0 : 420 },
     ).catch(() => undefined);
   }
@@ -679,12 +697,12 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         : "Karakoram pilot area");
 
   return (
-    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-waypoint-mode={waypointMode || undefined}>
+    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-view-mode={viewMode} data-waypoint-mode={waypointMode || undefined}>
       <div
         ref={containerRef}
         className="qgis-map__surface"
         role="region"
-        aria-label="Interactive 3D Earth with expedition data layers"
+        aria-label="Interactive Earth with expedition data layers"
       />
       <div className="qgis-map__grid" aria-hidden="true" />
       <aside className="earth-workspace-panel" data-open={panelOpen || undefined} aria-label="Map places and layers">
@@ -704,6 +722,28 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
               <strong>{activeRoute?.name ?? (waypoints.length ? "Waypoint demonstration" : "Karakoram pilot")}</strong>
               <small>{activeRoute ? "Uploaded GPX controls the active area" : waypoints.length ? `${waypoints.length} of 8 demo points placed` : "Default demonstration area"}</small>
             </header>
+
+            <fieldset className="earth-view-mode">
+              <legend className="data-label">View</legend>
+              <button
+                type="button"
+                aria-pressed={viewMode === "2d"}
+                onClick={() => changeViewMode("2d")}
+                disabled={!ready}
+              >
+                <strong>2D</strong>
+                <small>Overhead</small>
+              </button>
+              <button
+                type="button"
+                aria-pressed={viewMode === "3d"}
+                onClick={() => changeViewMode("3d")}
+                disabled={!ready}
+              >
+                <strong>3D</strong>
+                <small>Terrain</small>
+              </button>
+            </fieldset>
 
             <div className="earth-workspace-panel__waypoints">
               <button
@@ -743,7 +783,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
               <label><input type="checkbox" checked={layerVisibility.hazards} onChange={() => toggleLayer("hazards")} /><i data-kind="hazard" /><span>Terrain screening</span><small>{hazardAnalysis ? hazardAnalysis.zones.features.length : 0}</small></label>
             </fieldset>
 
-            <p className="earth-workspace-panel__hint"><MousePointer2 aria-hidden="true" /> Drag to pan · scroll to zoom · right-drag to tilt</p>
+            <p className="earth-workspace-panel__hint"><MousePointer2 aria-hidden="true" /> Drag to move · scroll, pinch, or right-drag to zoom · rotation locked</p>
           </div>
         ) : null}
       </aside>
@@ -751,13 +791,12 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         <span className="data-label">Scene center</span>
         <strong>{locationLabel}</strong>
         <span>{center.latitude.toFixed(4)}, {center.longitude.toFixed(4)} · Z{center.zoom.toFixed(1)}</span>
-        <small>ArcGIS global 3D · {snapshot?.mode === "live" ? "Position plot" : "SIMULATED route overlay"}</small>
+        <small>ArcGIS global · {viewMode === "3d" ? "3D terrain" : "2D overhead"} · {snapshot?.mode === "live" ? "Position plot" : "SIMULATED route overlay"}</small>
       </div>
       <div className="qgis-map__scene-actions" aria-label="Scene controls">
         <button type="button" onClick={() => zoomBy(1)} disabled={!ready} aria-label="Zoom in" title="Zoom in"><ZoomIn aria-hidden="true" /></button>
         <button type="button" onClick={() => zoomBy(-1)} disabled={!ready} aria-label="Zoom out" title="Zoom out"><ZoomOut aria-hidden="true" /></button>
         <button type="button" onClick={showGlobalView} disabled={!ready} aria-label="Show global Earth view" title="Show global Earth view"><Globe2 aria-hidden="true" /></button>
-        <button type="button" onClick={resetOrientation} disabled={!ready} aria-label="Reset map orientation" title="Reset map orientation"><RotateCcw aria-hidden="true" /></button>
         <button type="button" onClick={returnToPilotArea} disabled={!ready} aria-label="Return to Karakoram pilot area" title="Return to Karakoram pilot area"><LocateFixed aria-hidden="true" /></button>
       </div>
       <div className="qgis-map__legend" aria-label="Map legend">
