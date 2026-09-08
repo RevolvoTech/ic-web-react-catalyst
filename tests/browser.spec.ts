@@ -187,15 +187,23 @@ test.describe("QGIS demo state lab", () => {
     await expect(page.getByText("Coordinates: WGS84", { exact: true })).toBeVisible();
   });
 
-  test("3D Earth pans, updates its center label, and can return to the pilot area", async ({ page }) => {
-    test.setTimeout(90_000);
+  test("3D Earth starts at the latest position and preserves the camera while adding waypoints", async ({ page }) => {
+    test.setTimeout(150_000);
     await waitForCurrentFixture(page);
     const map = page.getByRole("region", { name: "Interactive Earth with expedition data layers" });
     const mapShell = page.locator(".qgis-map");
     const centerLabel = page.locator(".qgis-map__label");
     await map.scrollIntoViewIfNeeded();
     await expect(mapShell).toHaveAttribute("data-map-ready", "true", { timeout: 30_000 });
-    await expect(centerLabel.getByText("Karakoram map center, Gilgit-Baltistan, Pakistan", { exact: true })).toBeVisible();
+    await expect(mapShell).toHaveAttribute("data-operational-focus", "latest-position");
+    await expect(centerLabel.getByText("Viewing area", { exact: true })).toBeVisible();
+    await expect.poll(async () => {
+      const text = await centerLabel.locator("span").nth(1).textContent();
+      const match = text?.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      if (!match) return false;
+      return Math.abs(Number(match[1]) - 35.7486) < 0.12 && Math.abs(Number(match[2]) - 76.5296) < 0.12;
+    }, { timeout: 15_000 }).toBe(true);
+    await expect(centerLabel.getByText("Karakoram map center, Gilgit-Baltistan, Pakistan", { exact: true })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole("button", { name: "2D Overhead" })).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByRole("button", { name: "3D Terrain" })).toHaveAttribute("aria-pressed", "true");
 
@@ -206,9 +214,18 @@ test.describe("QGIS demo state lab", () => {
     await expect(mapShell).toHaveAttribute("data-view-mode", "3d");
     await expect(centerLabel.getByText(/3D terrain/)).toBeVisible();
 
-    const before = await centerLabel.locator("span").nth(1).textContent();
     const box = await map.boundingBox();
     expect(box).not.toBeNull();
+    const beforeWaypoints = await centerLabel.locator("span").nth(1).textContent();
+    await page.locator(".earth-panel-action").click();
+    await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.52, (box?.y ?? 0) + (box?.height ?? 0) * 0.46);
+    await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.62, (box?.y ?? 0) + (box?.height ?? 0) * 0.52);
+    await expect(page.getByRole("list", { name: "Demonstration waypoints" }).getByRole("listitem")).toHaveCount(2);
+    await page.waitForTimeout(900);
+    expect(await centerLabel.locator("span").nth(1).textContent()).toBe(beforeWaypoints);
+    await page.locator(".earth-panel-action").click();
+
+    const before = await centerLabel.locator("span").nth(1).textContent();
     await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2);
     await page.mouse.down();
     await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2 + 150, (box?.y ?? 0) + (box?.height ?? 0) / 2, { steps: 8 });
@@ -222,14 +239,13 @@ test.describe("QGIS demo state lab", () => {
     await page.mouse.up({ button: "right" });
     await expect.poll(() => centerLabel.locator("span").nth(1).textContent()).not.toBe(beforeRightDrag);
 
-    await page.getByRole("button", { name: "Return to Karakoram pilot area" }).click();
+    await page.getByRole("button", { name: "Return to latest position" }).click();
+    await expect(mapShell).toHaveAttribute("data-operational-focus", "latest-position");
     await expect.poll(async () => {
       const text = await centerLabel.locator("span").nth(1).textContent();
       const match = text?.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
       if (!match) return false;
-      // A tilted SceneView reports the camera's ground-center rather than the
-      // exact target point, so verify that navigation returns to the pilot AOI.
-      return Math.abs(Number(match[1]) - 35.742) < 0.03 && Math.abs(Number(match[2]) - 76.519) < 0.03;
+      return Math.abs(Number(match[1]) - 35.7486) < 0.12 && Math.abs(Number(match[2]) - 76.5296) < 0.12;
     }, { timeout: 15_000 }).toBe(true);
   });
 

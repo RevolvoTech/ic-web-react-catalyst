@@ -35,6 +35,7 @@ interface QgisMapProps {
 
 type LocationState = "idle" | "loading" | "ready" | "unavailable";
 type MapViewMode = "2d" | "3d";
+type OperationalFocus = "loading" | "latest-position" | "active-route" | "pilot-area";
 
 interface MapCenter {
   latitude: number;
@@ -107,6 +108,7 @@ type ArcGisModules = [
 const INITIAL_CENTER: MapCenter = { latitude: 35.742, longitude: 76.519, zoom: 11.8 };
 const ARCGIS_API_KEY = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
 const CAMERA_TILT: Record<MapViewMode, number> = { "2d": 0, "3d": 62 };
+const POSITION_FOCUS_ZOOM = 13.2;
 
 const plannedRouteCoordinates = [
   [76.5082, 35.7378],
@@ -117,6 +119,23 @@ const plannedRouteCoordinates = [
   [76.5296, 35.7486],
   [76.5344, 35.7522],
 ];
+
+function readVisibleMapCenter(view: ArcGisSceneView): MapCenter | null {
+  const viewCenter = view.center;
+  const latitude = viewCenter?.latitude;
+  const longitude = viewCenter?.longitude;
+  if (
+    typeof latitude !== "number"
+    || typeof longitude !== "number"
+    || !Number.isFinite(latitude)
+    || !Number.isFinite(longitude)
+  ) return null;
+  return {
+    latitude,
+    longitude,
+    zoom: Number.isFinite(view.zoom) ? view.zoom : INITIAL_CENTER.zoom,
+  };
+}
 
 function colorsFromDocument() {
   const styles = getComputedStyle(document.documentElement);
@@ -272,6 +291,9 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const constructorsRef = useRef<ArcGisConstructors | null>(null);
   const waypointModeRef = useRef(false);
   const viewModeRef = useRef<MapViewMode>("3d");
+  const initialFocusAppliedRef = useRef(false);
+  const focusedRouteRef = useRef<RouteAnalysis | null>(null);
+  const snapshotRef = useRef(snapshot);
   const reduceMotion = useReducedMotion();
   const [shouldInitialize, setShouldInitialize] = useState(false);
   const [ready, setReady] = useState(false);
@@ -281,6 +303,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const [locationState, setLocationState] = useState<LocationState>("idle");
   const [panelOpen, setPanelOpen] = useState(true);
   const [viewMode, setViewMode] = useState<MapViewMode>("3d");
+  const [operationalFocus, setOperationalFocus] = useState<OperationalFocus>("loading");
   const [waypointMode, setWaypointMode] = useState(false);
   const [waypoints, setWaypoints] = useState<DemoWaypoint[]>([]);
   const [activeRoute, setActiveRoute] = useState<RouteAnalysis | null>(null);
@@ -295,6 +318,10 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   useEffect(() => {
     waypointModeRef.current = waypointMode;
   }, [waypointMode]);
+
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
 
   useEffect(() => {
     viewModeRef.current = viewMode;
@@ -466,19 +493,27 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         viewRef.current = view;
 
         const updateCenter = () => {
-          const viewCenter = view.center;
-          const latitude = viewCenter?.latitude;
-          const longitude = viewCenter?.longitude;
-          if (typeof latitude !== "number" || typeof longitude !== "number" || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-          setCenter({
-            latitude,
-            longitude,
-            zoom: Number.isFinite(view.zoom) ? view.zoom : INITIAL_CENTER.zoom,
-          });
+          const nextCenter = readVisibleMapCenter(view);
+          if (nextCenter) setCenter(nextCenter);
         };
 
         await view.when();
         if (cancelled) return;
+        const initialPosition = snapshotRef.current?.position;
+        if (initialPosition) {
+          const target = new constructors.Point({
+            longitude: initialPosition.longitude,
+            latitude: initialPosition.latitude,
+            spatialReference: { wkid: 4326 },
+          });
+          await view.goTo(
+            { target, zoom: POSITION_FOCUS_ZOOM, tilt: CAMERA_TILT["3d"], heading: 0 },
+            { animate: false, duration: 0 },
+          );
+          if (cancelled) return;
+          initialFocusAppliedRef.current = true;
+          setOperationalFocus("latest-position");
+        }
         setReady(true);
         updateCenter();
         stationaryHandle = reactiveUtils.watch(
@@ -573,11 +608,16 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     layers.waypoints.addMany(buildWaypoints(waypoints, constructors, colors));
     layers.hazards.addMany(buildHazards(hazardAnalysis, constructors, colors));
 
-    if ((activeRoute || waypoints.length >= 2) && routeGraphics[0]?.geometry) {
+    if (activeRoute && initialFocusAppliedRef.current && focusedRouteRef.current !== activeRoute && routeGraphics[0]?.geometry) {
+      focusedRouteRef.current = activeRoute;
       void view.goTo(
         { target: routeGraphics[0].geometry, tilt: CAMERA_TILT[viewModeRef.current], heading: 0 },
         { animate: !reduceMotion, duration: reduceMotion ? 0 : 700 },
-      ).catch(() => undefined);
+      ).then(() => {
+        setOperationalFocus("active-route");
+      }).catch(() => undefined);
+    } else if (!activeRoute) {
+      focusedRouteRef.current = null;
     }
   }, [activeRoute, hazardAnalysis, ready, reduceMotion, waypoints]);
 
@@ -594,13 +634,43 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     if (track) layers.actual.add(track);
     if (position) layers.position.add(position);
 
-    if (track?.geometry && snapshot?.track.length) {
-      void view.goTo(
-        { target: track.geometry, tilt: CAMERA_TILT[viewModeRef.current], heading: 0 },
-        { animate: !reduceMotion, duration: reduceMotion ? 0 : 600 },
-      ).catch(() => undefined);
+    if (!initialFocusAppliedRef.current && snapshot) {
+      initialFocusAppliedRef.current = true;
+      if (snapshot.position || !activeRoute?.points.length) {
+        const coordinates: [number, number] = snapshot.position
+          ? [snapshot.position.longitude, snapshot.position.latitude]
+          : [INITIAL_CENTER.longitude, INITIAL_CENTER.latitude];
+        const zoom = snapshot.position ? POSITION_FOCUS_ZOOM : INITIAL_CENTER.zoom;
+        const target = new constructors.Point({
+          longitude: coordinates[0],
+          latitude: coordinates[1],
+          spatialReference: { wkid: 4326 },
+        });
+        void view.goTo(
+          { target, zoom, tilt: CAMERA_TILT[viewModeRef.current], heading: 0 },
+          { animate: false, duration: 0 },
+        ).then(() => {
+          setOperationalFocus(snapshot.position ? "latest-position" : "pilot-area");
+          const nextCenter = readVisibleMapCenter(view);
+          if (nextCenter) setCenter(nextCenter);
+        }).catch(() => undefined);
+      } else {
+        focusedRouteRef.current = activeRoute;
+        const route = new constructors.Polyline({
+          paths: [activeRoute.points.map((point) => [point.longitude, point.latitude])],
+          spatialReference: { wkid: 4326 },
+        });
+        void view.goTo(
+          { target: route, tilt: CAMERA_TILT[viewModeRef.current], heading: 0 },
+          { animate: false, duration: 0 },
+        ).then(() => {
+          setOperationalFocus("active-route");
+          const nextCenter = readVisibleMapCenter(view);
+          if (nextCenter) setCenter(nextCenter);
+        }).catch(() => undefined);
+      }
     }
-  }, [ready, reduceMotion, snapshot]);
+  }, [activeRoute, ready, snapshot]);
 
   useEffect(() => {
     const layers = layersRef.current;
@@ -612,24 +682,31 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     layers.hazards.visible = layerVisibility.hazards;
   }, [layerVisibility, ready]);
 
-  function returnToPilotArea() {
+  function returnToOperationalFocus() {
     const view = viewRef.current;
     const constructors = constructorsRef.current;
     if (!view || !constructors) return;
+    const targetCenter: [number, number] = snapshot?.position
+      ? [snapshot.position.longitude, snapshot.position.latitude]
+      : [INITIAL_CENTER.longitude, INITIAL_CENTER.latitude];
     const target = new constructors.Point({
-      longitude: INITIAL_CENTER.longitude,
-      latitude: INITIAL_CENTER.latitude,
+      longitude: targetCenter[0],
+      latitude: targetCenter[1],
       spatialReference: { wkid: 4326 },
     });
+    setOperationalFocus(snapshot?.position ? "latest-position" : "pilot-area");
     void view.goTo(
       {
         target,
-        zoom: INITIAL_CENTER.zoom,
+        zoom: snapshot?.position ? POSITION_FOCUS_ZOOM : INITIAL_CENTER.zoom,
         tilt: CAMERA_TILT[viewModeRef.current],
         heading: 0,
       },
       { animate: !reduceMotion, duration: reduceMotion ? 0 : 700 },
-    ).catch(() => undefined);
+    ).then(() => {
+      const nextCenter = readVisibleMapCenter(view);
+      if (nextCenter) setCenter(nextCenter);
+    }).catch(() => undefined);
   }
 
   function showGlobalView() {
@@ -667,9 +744,17 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     viewModeRef.current = nextMode;
     setViewMode(nextMode);
     void view.goTo(
-      { heading: 0, tilt: CAMERA_TILT[nextMode] },
+      {
+        center: [center.longitude, center.latitude],
+        zoom: view.zoom,
+        tilt: CAMERA_TILT[nextMode],
+        heading: 0,
+      },
       { animate: !reduceMotion, duration: reduceMotion ? 0 : 420 },
-    ).catch(() => undefined);
+    ).then(() => {
+      const nextCenter = readVisibleMapCenter(view);
+      if (nextCenter) setCenter(nextCenter);
+    }).catch(() => undefined);
   }
 
   function clearWaypoints() {
@@ -697,7 +782,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         : "Karakoram pilot area");
 
   return (
-    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-view-mode={viewMode} data-waypoint-mode={waypointMode || undefined}>
+    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-view-mode={viewMode} data-operational-focus={operationalFocus} data-waypoint-mode={waypointMode || undefined}>
       <div
         ref={containerRef}
         className="qgis-map__surface"
@@ -788,7 +873,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         ) : null}
       </aside>
       <div className="qgis-map__label" aria-live="polite">
-        <span className="data-label">Scene center</span>
+        <span className="data-label">Viewing area</span>
         <strong>{locationLabel}</strong>
         <span>{center.latitude.toFixed(4)}, {center.longitude.toFixed(4)} · Z{center.zoom.toFixed(1)}</span>
         <small>ArcGIS global · {viewMode === "3d" ? "3D terrain" : "2D overhead"} · {snapshot?.mode === "live" ? "Position plot" : "SIMULATED route overlay"}</small>
@@ -797,7 +882,15 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         <button type="button" onClick={() => zoomBy(1)} disabled={!ready} aria-label="Zoom in" title="Zoom in"><ZoomIn aria-hidden="true" /></button>
         <button type="button" onClick={() => zoomBy(-1)} disabled={!ready} aria-label="Zoom out" title="Zoom out"><ZoomOut aria-hidden="true" /></button>
         <button type="button" onClick={showGlobalView} disabled={!ready} aria-label="Show global Earth view" title="Show global Earth view"><Globe2 aria-hidden="true" /></button>
-        <button type="button" onClick={returnToPilotArea} disabled={!ready} aria-label="Return to Karakoram pilot area" title="Return to Karakoram pilot area"><LocateFixed aria-hidden="true" /></button>
+        <button
+          type="button"
+          onClick={returnToOperationalFocus}
+          disabled={!ready}
+          aria-label={snapshot?.position ? "Return to latest position" : "Return to Karakoram pilot area"}
+          title={snapshot?.position ? "Return to latest position" : "Return to Karakoram pilot area"}
+        >
+          <LocateFixed aria-hidden="true" />
+        </button>
       </div>
       <div className="qgis-map__legend" aria-label="Map legend">
         {layerVisibility.route ? <span><i data-kind="planned" /> Planned route</span> : null}

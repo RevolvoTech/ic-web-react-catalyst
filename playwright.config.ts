@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const websitePort = process.env.PLAYWRIGHT_WEBSITE_PORT ?? "3100";
 const websiteUrl = `http://127.0.0.1:${websitePort}`;
-const isolatedBrowserTestPattern = /(3D Earth pans|ArcGIS scene overlays|Platform, GIS, and Demo sections)/;
+const isolatedBrowserTestPattern = /(3D Earth starts|ArcGIS scene overlays|Platform, GIS, and Demo sections)/;
 
 export default defineConfig({
   testDir: "./tests",
