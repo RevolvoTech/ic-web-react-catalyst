@@ -749,8 +749,82 @@ test("the ArcGIS scene overlays stay inside the map without colliding", async ({
   await page.locator(".qgis-map").scrollIntoViewIfNeeded();
   await expect(page.locator(".qgis-map")).toHaveAttribute("data-map-ready", "true", { timeout: 30_000 });
   await expect(page.locator(".qgis-map__scene-actions")).toBeVisible();
-  await page.getByRole("button", { name: "Layers", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Layers" })).toBeVisible();
+
+  const inspectHud = () => page.evaluate(() => {
+    const selectors = {
+      map: ".qgis-map",
+      canvas: ".qgis-map .esri-view-surface",
+      toolsPanel: ".earth-workspace-panel__content",
+      toolsToggle: ".earth-workspace-panel__toggle",
+      label: ".qgis-map__label",
+      legend: ".qgis-map__legend",
+      controls: ".qgis-map__scene-actions",
+      layersTrigger: ".earth-layers-control__trigger",
+      layersPanel: ".earth-layers-panel",
+    } as const;
+    type SelectorName = keyof typeof selectors;
+    type Bounds = { top: number; right: number; bottom: number; left: number };
+    const entries = Object.entries(selectors).map(([name, selector]) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      const bounds = element?.getBoundingClientRect();
+      const style = element ? getComputedStyle(element) : null;
+      const visible = Boolean(
+        bounds
+        && bounds.width > 0
+        && bounds.height > 0
+        && style?.display !== "none"
+        && style?.visibility !== "hidden"
+        && Number(style?.opacity ?? 1) > 0,
+      );
+      return [name, {
+        exists: Boolean(element),
+        visible,
+        bounds: bounds ? { top: bounds.top, right: bounds.right, bottom: bounds.bottom, left: bounds.left } : null,
+      }] as const;
+    });
+    const elements = Object.fromEntries(entries) as Record<SelectorName, { exists: boolean; visible: boolean; bounds: Bounds | null }>;
+    const hudNames = (Object.keys(selectors) as SelectorName[]).filter((name) => !["map", "canvas"].includes(name));
+    const visibleHud = hudNames.filter((name) => elements[name].visible);
+    const overlaps = (first: Bounds | null, second: Bounds | null) => Boolean(
+      first
+      && second
+      && first.left < second.right
+      && first.right > second.left
+      && first.top < second.bottom
+      && first.bottom > second.top,
+    );
+    const isInside = (child: Bounds | null, parent: Bounds | null) => Boolean(
+      child
+      && parent
+      && child.left >= parent.left - 1
+      && child.right <= parent.right + 1
+      && child.top >= parent.top - 1
+      && child.bottom <= parent.bottom + 1,
+    );
+    const collisions: string[] = [];
+    visibleHud.forEach((first, firstIndex) => {
+      visibleHud.slice(firstIndex + 1).forEach((second) => {
+        if (overlaps(elements[first].bounds, elements[second].bounds)) collisions.push(`${first}:${second}`);
+      });
+    });
+
+    return {
+      visibleHud,
+      collisions,
+      outside: visibleHud.filter((name) => !isInside(elements[name].bounds, elements.map.bounds)),
+      canvasDelta:
+        elements.canvas.bounds && elements.map.bounds
+          ? {
+              width: Math.abs(
+                elements.canvas.bounds.right - elements.canvas.bounds.left - (elements.map.bounds.right - elements.map.bounds.left),
+              ),
+              height: Math.abs(
+                elements.canvas.bounds.bottom - elements.canvas.bounds.top - (elements.map.bounds.bottom - elements.map.bounds.top),
+              ),
+            }
+          : null,
+    };
+  });
 
   for (const width of mapWidths) {
     await page.setViewportSize({ width, height: 900 });
@@ -761,83 +835,32 @@ test("the ArcGIS scene overlays stay inside the map without colliding", async ({
         }),
     );
 
-    const layout = await page.evaluate(() => {
-      const selectors = {
-        map: ".qgis-map",
-        canvas: ".qgis-map .esri-view-surface",
-        label: ".qgis-map__label",
-        legend: ".qgis-map__legend",
-        controls: ".qgis-map__scene-actions",
-        layers: ".earth-layers-control__trigger",
-        layersPanel: ".earth-layers-panel",
-      } as const;
-      const boxes = Object.fromEntries(
-        Object.entries(selectors).map(([name, selector]) => {
-          const element = document.querySelector<HTMLElement>(selector);
-          const bounds = element?.getBoundingClientRect();
-          return [
-            name,
-            bounds
-              ? {
-                  top: bounds.top,
-                  right: bounds.right,
-                  bottom: bounds.bottom,
-                  left: bounds.left,
-                }
-              : null,
-          ];
-        }),
-      ) as Record<keyof typeof selectors, DOMRect | null>;
+    const closedLayout = await inspectHud();
+    expect(closedLayout.collisions, `colliding closed HUD at ${width}px`).toEqual([]);
+    expect(closedLayout.outside, `closed HUD outside map at ${width}px`).toEqual([]);
+    expect(closedLayout.canvasDelta?.width, `map canvas width mismatch at ${width}px`).toBeLessThanOrEqual(1);
+    expect(closedLayout.canvasDelta?.height, `map canvas height mismatch at ${width}px`).toBeLessThanOrEqual(1);
 
-      const overlaps = (first: DOMRect | null, second: DOMRect | null) =>
-        Boolean(
-          first &&
-            second &&
-            first.left < second.right &&
-            first.right > second.left &&
-            first.top < second.bottom &&
-            first.bottom > second.top,
-        );
-      const isInside = (child: DOMRect | null, parent: DOMRect | null) =>
-        Boolean(
-          child &&
-            parent &&
-            child.left >= parent.left - 1 &&
-            child.right <= parent.right + 1 &&
-            child.top >= parent.top - 1 &&
-            child.bottom <= parent.bottom + 1,
-        );
+    await page.getByRole("button", { name: "Layers", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Layers" })).toBeVisible();
+    const layersLayout = await inspectHud();
+    expect(layersLayout.visibleHud.sort(), `unexpected HUD while layers are open at ${width}px`).toEqual(
+      ["layersPanel", "layersTrigger"].sort(),
+    );
+    expect(layersLayout.collisions, `colliding layers HUD at ${width}px`).toEqual([]);
+    expect(layersLayout.outside, `layers HUD outside map at ${width}px`).toEqual([]);
+    await page.getByRole("button", { name: "Close layers" }).click();
 
-      return {
-        missing: Object.entries(boxes)
-          .filter(([, bounds]) => !bounds)
-          .map(([name]) => name),
-        collisions: [
-          ["legend", "controls", overlaps(boxes.legend, boxes.controls)],
-          ["label", "controls", overlaps(boxes.label, boxes.controls)],
-        ].filter(([, , collision]) => collision),
-        outside: (["label", "legend", "controls", "layers", "layersPanel"] as const).filter(
-          (name) => !isInside(boxes[name], boxes.map),
-        ),
-        canvasDelta:
-          boxes.canvas && boxes.map
-            ? {
-                width: Math.abs(
-                  boxes.canvas.right - boxes.canvas.left - (boxes.map.right - boxes.map.left),
-                ),
-                height: Math.abs(
-                  boxes.canvas.bottom - boxes.canvas.top - (boxes.map.bottom - boxes.map.top),
-                ),
-              }
-            : null,
-      };
-    });
-
-    expect(layout.missing, `missing map overlays at ${width}px`).toEqual([]);
-    expect(layout.collisions, `colliding map overlays at ${width}px`).toEqual([]);
-    expect(layout.outside, `map overlays outside their surface at ${width}px`).toEqual([]);
-    expect(layout.canvasDelta?.width, `map canvas width mismatch at ${width}px`).toBeLessThanOrEqual(1);
-    expect(layout.canvasDelta?.height, `map canvas height mismatch at ${width}px`).toBeLessThanOrEqual(1);
+    if (width <= 768) {
+      await page.getByRole("button", { name: "Open map tools" }).click();
+      const toolsLayout = await inspectHud();
+      expect(toolsLayout.visibleHud.sort(), `unexpected HUD while map tools are open at ${width}px`).toEqual(
+        ["toolsPanel", "toolsToggle"].sort(),
+      );
+      expect(toolsLayout.collisions, `colliding map-tools HUD at ${width}px`).toEqual([]);
+      expect(toolsLayout.outside, `map-tools HUD outside map at ${width}px`).toEqual([]);
+      await page.getByRole("button", { name: "Hide map tools" }).click();
+    }
   }
 });
 

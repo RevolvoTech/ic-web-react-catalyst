@@ -1078,6 +1078,15 @@
   color: var(--color-warning);
 }
 
+.qgis-map[data-layers-open] .earth-workspace-panel,
+.qgis-map[data-layers-open] .qgis-map__label,
+.qgis-map[data-layers-open] .qgis-map__scene-actions,
+.qgis-map[data-layers-open] .qgis-map__legend {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .earth-workspace-panel__hint {
   display: flex;
   align-items: flex-start;
@@ -1622,6 +1631,15 @@
   .earth-workspace-panel {
     bottom: 6rem;
     width: min(18rem, calc(100% - 5.5rem));
+  }
+
+  .qgis-map[data-tools-open]:not([data-layers-open]) .qgis-map__label,
+  .qgis-map[data-tools-open]:not([data-layers-open]) .qgis-map__scene-actions,
+  .qgis-map[data-tools-open]:not([data-layers-open]) .qgis-map__legend,
+  .qgis-map[data-tools-open]:not([data-layers-open]) .earth-layers-control {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .qgis-map__label {

@@ -889,7 +889,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         : "Karakoram pilot area");
 
   return (
-    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-view-mode={viewMode} data-operational-focus={operationalFocus} data-waypoint-mode={waypointMode || undefined}>
+    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-view-mode={viewMode} data-operational-focus={operationalFocus} data-waypoint-mode={waypointMode || undefined} data-tools-open={panelOpen || undefined} data-layers-open={layersOpen || undefined}>
       <div
         ref={containerRef}
         className="qgis-map__surface"
