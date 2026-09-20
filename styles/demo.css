@@ -827,6 +827,170 @@
   color: var(--color-on-action);
 }
 
+.earth-layers-control {
+  position: absolute;
+  z-index: 6;
+  top: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  pointer-events: none;
+}
+
+.earth-layers-control__trigger {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  min-width: 6.25rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  box-shadow: 0 0.75rem 2rem color-mix(in srgb, var(--color-canvas) 44%, transparent);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  pointer-events: auto;
+  transition: border-color var(--motion-fast) var(--ease-enter), background-color var(--motion-fast) var(--ease-enter), transform var(--motion-instant) var(--ease-enter);
+}
+
+.earth-layers-control__trigger:hover,
+.earth-layers-control__trigger[aria-expanded="true"] {
+  border-color: var(--color-action);
+  background: var(--color-surface-active);
+}
+
+.earth-layers-control__trigger:active {
+  transform: scale(0.97);
+}
+
+.earth-layers-control__trigger svg {
+  width: 1.05rem;
+}
+
+.earth-layers-panel {
+  position: absolute;
+  right: 0;
+  bottom: 3.35rem;
+  width: min(22rem, 100%);
+  max-height: calc(100% - 3.35rem);
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--color-canvas) 97%, transparent);
+  box-shadow: 0 1.25rem 3rem color-mix(in srgb, var(--color-canvas) 62%, transparent);
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+
+.earth-layers-panel > header {
+  display: flex;
+  min-height: 4rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.earth-layers-panel > header h3 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+
+.earth-layers-panel > header button {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.earth-layers-panel > header button:hover {
+  background: var(--color-surface-active);
+  color: var(--color-text);
+}
+
+.earth-layers-panel > header svg {
+  width: 1rem;
+}
+
+.earth-basemap-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.9rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.earth-basemap-list legend {
+  grid-column: 1 / -1;
+  padding: 0 0.25rem 0.2rem;
+}
+
+.earth-basemap-list button {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.earth-basemap-list button:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-active);
+  color: var(--color-text);
+}
+
+.earth-basemap-list button[aria-pressed="true"] {
+  border-color: var(--color-action);
+  background: color-mix(in srgb, var(--color-action) 10%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.earth-basemap-list button > svg {
+  width: 1rem;
+  flex: none;
+  color: var(--color-action);
+}
+
+.earth-basemap-list button span,
+.earth-layer-list label > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.earth-basemap-list strong,
+.earth-layer-list strong {
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.earth-basemap-list small,
+.earth-layer-list small {
+  color: var(--color-text-muted);
+  font-size: var(--text-compact-size);
+  line-height: 1.3;
+}
+
 .earth-layer-list {
   display: grid;
   gap: 0.15rem;
@@ -841,13 +1005,17 @@
 
 .earth-layer-list label {
   display: grid;
-  min-height: 2.75rem;
-  grid-template-columns: 1.1rem 1rem minmax(0, 1fr) auto;
+  min-height: 3.35rem;
+  grid-template-columns: 1.1rem 1rem minmax(0, 1fr);
   align-items: center;
   gap: 0.55rem;
-  padding-inline: 0.3rem;
+  padding: 0.25rem 0.3rem;
   color: var(--color-text-secondary);
   font-size: 0.78rem;
+}
+
+.earth-layer-list label[data-disabled] {
+  opacity: 0.62;
 }
 
 .earth-layer-list input {
@@ -879,9 +1047,35 @@
   background: color-mix(in srgb, var(--color-critical) 25%, transparent);
 }
 
+.earth-layer-list i[data-kind="weather"],
+.qgis-map__legend i[data-kind="weather"] {
+  width: 0.65rem;
+  height: 0.65rem;
+  transform: rotate(45deg);
+  border: 1px solid var(--color-canvas);
+  background: var(--color-warning);
+}
+
 .earth-layer-list label small {
   color: var(--color-text-muted);
   font-family: var(--font-data);
+}
+
+.earth-layers-panel__note {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-compact-size);
+  line-height: 1.4;
+}
+
+.earth-layers-panel__note svg {
+  width: 1rem;
+  color: var(--color-warning);
 }
 
 .earth-workspace-panel__hint {
@@ -969,7 +1163,7 @@
   left: 1rem;
   display: flex;
   width: fit-content;
-  max-width: calc(100% - 2rem);
+  max-width: calc(100% - 8.25rem);
   flex-wrap: wrap;
   gap: 0.65rem 1rem;
   padding: 0.7rem;
@@ -1436,13 +1630,13 @@
 
   .qgis-map__legend {
     display: grid;
-    width: min(22rem, calc(100% - 2rem));
+    width: min(22rem, calc(100% - 8.25rem));
     max-width: none;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .qgis-map__legend span:last-child {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .track-list dl {
@@ -1462,6 +1656,21 @@
   .earth-workspace-panel {
     top: 0.65rem;
     left: 0.65rem;
+  }
+
+  .earth-layers-control {
+    top: 0.65rem;
+    right: 0.65rem;
+    bottom: 0.65rem;
+    left: 0.65rem;
+  }
+
+  .earth-layers-panel {
+    width: 100%;
+  }
+
+  .earth-basemap-list {
+    grid-template-columns: 1fr;
   }
 
   .qgis-map__label {

@@ -8,6 +8,7 @@ import { isHazardAnalysis, type HazardAnalysis, type HazardRiskLevel } from "@/l
 import {
   publishWorkspaceHazard,
   publishWorkspaceRoute,
+  publishWorkspaceWeather,
 } from "@/lib/operational-workspace";
 import { isRouteAnalysis, routeValue, type RouteAnalysis } from "@/lib/route";
 import { isRouteWeatherAnalysis, type RouteWeatherAnalysis, type RouteWeatherStatus } from "@/lib/route-weather";
@@ -304,6 +305,10 @@ export function RoutePlanner() {
   useEffect(() => {
     publishWorkspaceHazard(hazard);
   }, [hazard]);
+
+  useEffect(() => {
+    publishWorkspaceWeather(routeWeather);
+  }, [routeWeather]);
 
   async function analyze() {
     if (!file) { setError("Choose a GPX file first."); return; }

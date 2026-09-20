@@ -1,9 +1,11 @@
 import type { HazardAnalysis } from "./hazard";
 import type { RouteAnalysis, RoutePoint } from "./route";
+import type { RouteWeatherAnalysis } from "./route-weather";
 
 export const WORKSPACE_AOI_EVENT = "catalyst:workspace-aoi";
 export const WORKSPACE_ROUTE_EVENT = "catalyst:workspace-route";
 export const WORKSPACE_HAZARD_EVENT = "catalyst:workspace-hazard";
+export const WORKSPACE_WEATHER_EVENT = "catalyst:workspace-weather";
 export const WORKSPACE_AOI_STORAGE_KEY = "catalyst:workspace-aoi:v1";
 
 export type WorkspaceAoiSource = "pilot" | "route" | "waypoints";
@@ -30,6 +32,10 @@ export interface WorkspaceRouteDetail {
 
 export interface WorkspaceHazardDetail {
   hazard: HazardAnalysis | null;
+}
+
+export interface WorkspaceWeatherDetail {
+  weather: RouteWeatherAnalysis | null;
 }
 
 const PILOT_BBOX: WorkspaceAoi["bbox"] = [76.48, 35.7, 76.56, 35.78];
@@ -144,5 +150,11 @@ export function publishWorkspaceRoute(route: RouteAnalysis) {
 export function publishWorkspaceHazard(hazard: HazardAnalysis | null) {
   window.dispatchEvent(new CustomEvent<WorkspaceHazardDetail>(WORKSPACE_HAZARD_EVENT, {
     detail: { hazard },
+  }));
+}
+
+export function publishWorkspaceWeather(weather: RouteWeatherAnalysis | null) {
+  window.dispatchEvent(new CustomEvent<WorkspaceWeatherDetail>(WORKSPACE_WEATHER_EVENT, {
+    detail: { weather },
   }));
 }

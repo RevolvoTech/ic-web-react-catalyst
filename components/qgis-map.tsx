@@ -2,12 +2,16 @@
 
 import {
   ChevronLeft,
+  CloudSun,
   Globe2,
   Layers3,
   LocateFixed,
+  Map as MapIcon,
   MapPin,
   MousePointer2,
+  Satellite,
   Trash2,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -21,12 +25,15 @@ import {
   publishWorkspaceAoi,
   WORKSPACE_HAZARD_EVENT,
   WORKSPACE_ROUTE_EVENT,
+  WORKSPACE_WEATHER_EVENT,
   type DemoWaypoint,
   type WorkspaceHazardDetail,
   type WorkspaceRouteDetail,
+  type WorkspaceWeatherDetail,
 } from "@/lib/operational-workspace";
 import type { QgisSnapshot } from "@/lib/qgis";
 import { isRouteAnalysis, type RouteAnalysis } from "@/lib/route";
+import { isRouteWeatherAnalysis, type RouteWeatherAnalysis, type RouteWeatherStatus } from "@/lib/route-weather";
 
 interface QgisMapProps {
   snapshot: QgisSnapshot | null;
@@ -35,6 +42,7 @@ interface QgisMapProps {
 
 type LocationState = "idle" | "loading" | "ready" | "unavailable";
 type MapViewMode = "2d" | "3d";
+type BasemapStyle = "satellite" | "topographic";
 type OperationalFocus = "loading" | "latest-position" | "active-route" | "pilot-area";
 
 interface MapCenter {
@@ -44,6 +52,10 @@ interface MapCenter {
 }
 
 type ArcGisGeometry = object;
+
+interface ArcGisMap {
+  basemap: string;
+}
 
 interface ArcGisGraphic {
   geometry?: ArcGisGeometry;
@@ -73,6 +85,7 @@ type ArcGisConstructor<T> = new (properties: Record<string, unknown>) => T;
 
 interface OperationalLayers {
   hazards: ArcGisGraphicsLayer;
+  weather: ArcGisGraphicsLayer;
   planned: ArcGisGraphicsLayer;
   actual: ArcGisGraphicsLayer;
   position: ArcGisGraphicsLayer;
@@ -90,7 +103,7 @@ interface ArcGisConstructors {
 }
 
 type ArcGisModules = [
-  ArcGisConstructor<object>,
+  ArcGisConstructor<ArcGisMap>,
   ArcGisConstructor<ArcGisSceneView>,
   ArcGisConstructor<ArcGisGraphicsLayer>,
   ArcGisConstructor<ArcGisGraphic>,
@@ -237,6 +250,42 @@ function buildHazards(
   });
 }
 
+function weatherColor(status: RouteWeatherStatus, colors: ReturnType<typeof colorsFromDocument>) {
+  if (status === "exceeds-threshold") return colors.critical;
+  if (status === "near-threshold") return colors.warning;
+  if (status === "within-threshold") return colors.success;
+  return colors.unknown;
+}
+
+function buildWeather(
+  analysis: RouteWeatherAnalysis | null,
+  constructors: ArcGisConstructors,
+  colors: ReturnType<typeof colorsFromDocument>,
+) {
+  if (!analysis) return [];
+  return analysis.segments.map((segment) => {
+    const color = weatherColor(segment.status, colors);
+    return new constructors.Graphic({
+      geometry: new constructors.Point({
+        longitude: segment.representative.longitude,
+        latitude: segment.representative.latitude,
+        spatialReference: { wkid: 4326 },
+      }),
+      symbol: new constructors.SimpleMarkerSymbol({
+        color,
+        size: 12,
+        style: "diamond",
+        outline: { color: colors.canvas, width: 2.5 },
+      }),
+      attributes: {
+        name: segment.segmentName,
+        status: segment.status,
+        peakWindKmh: segment.peakWindKmh,
+      },
+    });
+  });
+}
+
 function buildActualTrack(
   snapshot: QgisSnapshot | null,
   constructors: ArcGisConstructors,
@@ -287,8 +336,11 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<ArcGisSceneView | null>(null);
+  const sceneMapRef = useRef<ArcGisMap | null>(null);
   const layersRef = useRef<OperationalLayers | null>(null);
   const constructorsRef = useRef<ArcGisConstructors | null>(null);
+  const layersButtonRef = useRef<HTMLButtonElement>(null);
+  const layersPanelRef = useRef<HTMLDivElement>(null);
   const waypointModeRef = useRef(false);
   const viewModeRef = useRef<MapViewMode>("3d");
   const initialFocusAppliedRef = useRef(false);
@@ -302,17 +354,21 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const [location, setLocation] = useState<MapLocation | null>(null);
   const [locationState, setLocationState] = useState<LocationState>("idle");
   const [panelOpen, setPanelOpen] = useState(true);
+  const [layersOpen, setLayersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MapViewMode>("3d");
+  const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>("satellite");
   const [operationalFocus, setOperationalFocus] = useState<OperationalFocus>("loading");
   const [waypointMode, setWaypointMode] = useState(false);
   const [waypoints, setWaypoints] = useState<DemoWaypoint[]>([]);
   const [activeRoute, setActiveRoute] = useState<RouteAnalysis | null>(null);
   const [hazardAnalysis, setHazardAnalysis] = useState<HazardAnalysis | null>(null);
+  const [routeWeather, setRouteWeather] = useState<RouteWeatherAnalysis | null>(null);
   const [layerVisibility, setLayerVisibility] = useState({
     route: true,
     track: true,
     position: true,
     hazards: true,
+    weather: true,
   });
 
   useEffect(() => {
@@ -326,6 +382,27 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   useEffect(() => {
     viewModeRef.current = viewMode;
   }, [viewMode]);
+
+  useEffect(() => {
+    if (!layersOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setLayersOpen(false);
+      layersButtonRef.current?.focus();
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (layersPanelRef.current?.contains(target) || layersButtonRef.current?.contains(target)) return;
+      setLayersOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [layersOpen]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -349,11 +426,19 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         setHazardAnalysis(detail.hazard);
       }
     };
+    const weatherListener = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceWeatherDetail>).detail;
+      if (detail?.weather === null || isRouteWeatherAnalysis(detail?.weather)) {
+        setRouteWeather(detail.weather);
+      }
+    };
     window.addEventListener(WORKSPACE_ROUTE_EVENT, routeListener);
     window.addEventListener(WORKSPACE_HAZARD_EVENT, hazardListener);
+    window.addEventListener(WORKSPACE_WEATHER_EVENT, weatherListener);
     return () => {
       window.removeEventListener(WORKSPACE_ROUTE_EVENT, routeListener);
       window.removeEventListener(WORKSPACE_HAZARD_EVENT, hazardListener);
+      window.removeEventListener(WORKSPACE_WEATHER_EVENT, weatherListener);
     };
   }, []);
 
@@ -426,6 +511,11 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           listMode: "show",
           elevationInfo: { mode: "on-the-ground" },
         });
+        const weather = new GraphicsLayerConstructor({
+          title: "Route weather forecast",
+          listMode: "show",
+          elevationInfo: { mode: "relative-to-ground", offset: 14 },
+        });
         const planned = new GraphicsLayerConstructor({
           title: "Active planned route",
           listMode: "show",
@@ -447,13 +537,14 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           elevationInfo: { mode: "relative-to-ground", offset: 10 },
         });
         planned.addMany(buildPlannedRoute(plannedRouteCoordinates, constructors, colors));
-        layersRef.current = { hazards, planned, actual, position, waypoints: waypointLayer };
+        layersRef.current = { hazards, weather, planned, actual, position, waypoints: waypointLayer };
 
         const map = new ArcGISMap({
           basemap: "satellite",
           ground: "world-elevation",
-          layers: [hazards, planned, actual, position, waypointLayer],
+          layers: [hazards, weather, planned, actual, position, waypointLayer],
         });
+        sceneMapRef.current = map;
         const view = new SceneViewConstructor({
           container: containerRef.current,
           map,
@@ -551,6 +642,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
       clickHandle?.remove();
       viewRef.current?.destroy();
       viewRef.current = null;
+      sceneMapRef.current = null;
       layersRef.current = null;
       constructorsRef.current = null;
     };
@@ -604,9 +696,11 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     layers.planned.removeAll();
     layers.waypoints.removeAll();
     layers.hazards.removeAll();
+    layers.weather.removeAll();
     layers.planned.addMany(routeGraphics);
     layers.waypoints.addMany(buildWaypoints(waypoints, constructors, colors));
     layers.hazards.addMany(buildHazards(hazardAnalysis, constructors, colors));
+    layers.weather.addMany(buildWeather(routeWeather, constructors, colors));
 
     if (activeRoute && initialFocusAppliedRef.current && focusedRouteRef.current !== activeRoute && routeGraphics[0]?.geometry) {
       focusedRouteRef.current = activeRoute;
@@ -619,7 +713,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     } else if (!activeRoute) {
       focusedRouteRef.current = null;
     }
-  }, [activeRoute, hazardAnalysis, ready, reduceMotion, waypoints]);
+  }, [activeRoute, hazardAnalysis, ready, reduceMotion, routeWeather, waypoints]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -680,6 +774,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     layers.actual.visible = layerVisibility.track;
     layers.position.visible = layerVisibility.position;
     layers.hazards.visible = layerVisibility.hazards;
+    layers.weather.visible = layerVisibility.weather;
   }, [layerVisibility, ready]);
 
   function returnToOperationalFocus() {
@@ -774,6 +869,18 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     setLayerVisibility((current) => ({ ...current, [layer]: !current[layer] }));
   }
 
+  function changeBasemap(nextBasemap: BasemapStyle) {
+    const map = sceneMapRef.current;
+    if (!map) return;
+    map.basemap = nextBasemap === "satellite" ? "satellite" : "topo-vector";
+    setBasemapStyle(nextBasemap);
+  }
+
+  function closeLayersPanel({ restoreFocus = false } = {}) {
+    setLayersOpen(false);
+    if (restoreFocus) layersButtonRef.current?.focus();
+  }
+
   const locationLabel = location?.name
     ?? (locationState === "loading"
       ? "Identifying map center…"
@@ -790,15 +897,15 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         aria-label="Interactive Earth with expedition data layers"
       />
       <div className="qgis-map__grid" aria-hidden="true" />
-      <aside className="earth-workspace-panel" data-open={panelOpen || undefined} aria-label="Map places and layers">
+      <aside className="earth-workspace-panel" data-open={panelOpen || undefined} aria-label="Map places and route tools">
         <button
           className="earth-workspace-panel__toggle"
           type="button"
           aria-expanded={panelOpen}
           onClick={() => setPanelOpen((current) => !current)}
         >
-          {panelOpen ? <ChevronLeft aria-hidden="true" /> : <Layers3 aria-hidden="true" />}
-          <span>{panelOpen ? "Hide map panel" : "Open map panel"}</span>
+          {panelOpen ? <ChevronLeft aria-hidden="true" /> : <MapIcon aria-hidden="true" />}
+          <span>{panelOpen ? "Hide map tools" : "Open map tools"}</span>
         </button>
         {panelOpen ? (
           <div className="earth-workspace-panel__content">
@@ -860,18 +967,66 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
               ) : null}
             </div>
 
-            <fieldset className="earth-layer-list">
-              <legend className="data-label">Layers</legend>
-              <label><input type="checkbox" checked={layerVisibility.route} onChange={() => toggleLayer("route")} /><i data-kind="planned" /><span>Planned route</span></label>
-              <label><input type="checkbox" checked={layerVisibility.track} onChange={() => toggleLayer("track")} /><i data-kind="actual" /><span>Recent GPS track</span></label>
-              <label><input type="checkbox" checked={layerVisibility.position} onChange={() => toggleLayer("position")} /><i data-kind="position" /><span>Latest position</span></label>
-              <label><input type="checkbox" checked={layerVisibility.hazards} onChange={() => toggleLayer("hazards")} /><i data-kind="hazard" /><span>Terrain screening</span><small>{hazardAnalysis ? hazardAnalysis.zones.features.length : 0}</small></label>
-            </fieldset>
-
             <p className="earth-workspace-panel__hint"><MousePointer2 aria-hidden="true" /> Drag to move · scroll, pinch, or right-drag to zoom · rotation locked</p>
           </div>
         ) : null}
       </aside>
+      <div className="earth-layers-control" data-open={layersOpen || undefined}>
+        <button
+          ref={layersButtonRef}
+          className="earth-layers-control__trigger"
+          type="button"
+          aria-expanded={layersOpen}
+          aria-controls="earth-layers-panel"
+          aria-haspopup="dialog"
+          onClick={() => setLayersOpen((current) => !current)}
+        >
+          <Layers3 aria-hidden="true" />
+          <span>Layers</span>
+        </button>
+        {layersOpen ? (
+          <div
+            ref={layersPanelRef}
+            id="earth-layers-panel"
+            className="earth-layers-panel"
+            role="dialog"
+            aria-labelledby="earth-layers-title"
+          >
+            <header>
+              <div>
+                <span className="data-label">Map controls</span>
+                <h3 id="earth-layers-title">Layers</h3>
+              </div>
+              <button type="button" onClick={() => closeLayersPanel({ restoreFocus: true })} aria-label="Close layers">
+                <X aria-hidden="true" />
+              </button>
+            </header>
+
+            <fieldset className="earth-basemap-list">
+              <legend className="data-label">Map style</legend>
+              <button type="button" aria-pressed={basemapStyle === "satellite"} onClick={() => changeBasemap("satellite")} disabled={!ready}>
+                <Satellite aria-hidden="true" />
+                <span><strong>Satellite</strong><small>ArcGIS imagery + elevation</small></span>
+              </button>
+              <button type="button" aria-pressed={basemapStyle === "topographic"} onClick={() => changeBasemap("topographic")} disabled={!ready}>
+                <MapIcon aria-hidden="true" />
+                <span><strong>Topographic</strong><small>Labels, contours and terrain</small></span>
+              </button>
+            </fieldset>
+
+            <fieldset className="earth-layer-list">
+              <legend className="data-label">Operational overlays</legend>
+              <label><input type="checkbox" checked={layerVisibility.route} onChange={() => toggleLayer("route")} /><i data-kind="planned" /><span><strong>Planned route</strong><small>GPX or demonstration path</small></span></label>
+              <label><input type="checkbox" checked={layerVisibility.track} onChange={() => toggleLayer("track")} /><i data-kind="actual" /><span><strong>Recent GPS track</strong><small>{snapshot?.track.length ? `${snapshot.track.length} recorded points` : "No track received"}</small></span></label>
+              <label><input type="checkbox" checked={layerVisibility.position} onChange={() => toggleLayer("position")} /><i data-kind="position" /><span><strong>Latest position</strong><small>{snapshot?.position ? "Current map fix" : "No position received"}</small></span></label>
+              <label><input type="checkbox" checked={layerVisibility.hazards} onChange={() => toggleLayer("hazards")} /><i data-kind="hazard" /><span><strong>Hazard screening</strong><small>{hazardAnalysis ? `${hazardAnalysis.zones.features.length} terrain zones` : "Awaiting hazard analysis"}</small></span></label>
+              <label data-disabled={!routeWeather || undefined}><input type="checkbox" checked={layerVisibility.weather && Boolean(routeWeather)} onChange={() => toggleLayer("weather")} disabled={!routeWeather} /><i data-kind="weather" /><span><strong>Route weather</strong><small>{routeWeather ? `${routeWeather.segments.length} forecast segments · Open-Meteo` : "Awaiting route weather"}</small></span></label>
+            </fieldset>
+
+            <p className="earth-layers-panel__note"><CloudSun aria-hidden="true" /> Forecast markers show threshold status at route segments. They are decision support, not a safety declaration.</p>
+          </div>
+        ) : null}
+      </div>
       <div className="qgis-map__label" aria-live="polite">
         <span className="data-label">Viewing area</span>
         <strong>{locationLabel}</strong>
@@ -894,9 +1049,10 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
       </div>
       <div className="qgis-map__legend" aria-label="Map legend">
         {layerVisibility.route ? <span><i data-kind="planned" /> Planned route</span> : null}
-        <span><i data-kind="actual" /> Recent track</span>
-        <span><i data-kind="position" /> Latest position</span>
+        {layerVisibility.track ? <span><i data-kind="actual" /> Recent track</span> : null}
+        {layerVisibility.position ? <span><i data-kind="position" /> Latest position</span> : null}
         {hazardAnalysis && layerVisibility.hazards ? <span><i data-kind="hazard" /> Terrain screening</span> : null}
+        {routeWeather && layerVisibility.weather ? <span><i data-kind="weather" /> Route weather</span> : null}
       </div>
       {!shouldInitialize ? (
         <div className="qgis-map__message" role="status">

@@ -207,6 +207,24 @@ test.describe("QGIS demo state lab", () => {
     await expect(page.getByRole("button", { name: "2D Overhead" })).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByRole("button", { name: "3D Terrain" })).toHaveAttribute("aria-pressed", "true");
 
+    const layersButton = page.getByRole("button", { name: "Layers", exact: true });
+    await layersButton.click();
+    const layersDialog = page.getByRole("dialog", { name: "Layers" });
+    await expect(layersDialog).toBeVisible();
+    await expect(layersDialog.getByText("Awaiting hazard analysis", { exact: true })).toBeVisible();
+    await expect(layersDialog.getByText("Awaiting route weather", { exact: true })).toBeVisible();
+    await expect(layersDialog.getByRole("checkbox", { name: /Route weather/ })).toBeDisabled();
+    await layersDialog.getByRole("button", { name: /Topographic/ }).click();
+    await expect(layersDialog.getByRole("button", { name: /Topographic/ })).toHaveAttribute("aria-pressed", "true");
+    await layersDialog.getByRole("button", { name: /Satellite/ }).click();
+    await expect(layersDialog.getByRole("button", { name: /Satellite/ })).toHaveAttribute("aria-pressed", "true");
+    await layersDialog.getByRole("checkbox", { name: /Planned route/ }).uncheck();
+    await expect(page.locator(".qgis-map__legend").getByText("Planned route", { exact: true })).toHaveCount(0);
+    await layersDialog.getByRole("checkbox", { name: /Planned route/ }).check();
+    await page.keyboard.press("Escape");
+    await expect(layersDialog).toHaveCount(0);
+    await expect(layersButton).toBeFocused();
+
     await page.getByRole("button", { name: "2D Overhead" }).click();
     await expect(mapShell).toHaveAttribute("data-view-mode", "2d");
     await expect(centerLabel.getByText(/2D overhead/)).toBeVisible();
@@ -731,6 +749,8 @@ test("the ArcGIS scene overlays stay inside the map without colliding", async ({
   await page.locator(".qgis-map").scrollIntoViewIfNeeded();
   await expect(page.locator(".qgis-map")).toHaveAttribute("data-map-ready", "true", { timeout: 30_000 });
   await expect(page.locator(".qgis-map__scene-actions")).toBeVisible();
+  await page.getByRole("button", { name: "Layers", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Layers" })).toBeVisible();
 
   for (const width of mapWidths) {
     await page.setViewportSize({ width, height: 900 });
@@ -748,6 +768,8 @@ test("the ArcGIS scene overlays stay inside the map without colliding", async ({
         label: ".qgis-map__label",
         legend: ".qgis-map__legend",
         controls: ".qgis-map__scene-actions",
+        layers: ".earth-layers-control__trigger",
+        layersPanel: ".earth-layers-panel",
       } as const;
       const boxes = Object.fromEntries(
         Object.entries(selectors).map(([name, selector]) => {
@@ -794,7 +816,7 @@ test("the ArcGIS scene overlays stay inside the map without colliding", async ({
           ["legend", "controls", overlaps(boxes.legend, boxes.controls)],
           ["label", "controls", overlaps(boxes.label, boxes.controls)],
         ].filter(([, , collision]) => collision),
-        outside: (["label", "legend", "controls"] as const).filter(
+        outside: (["label", "legend", "controls", "layers", "layersPanel"] as const).filter(
           (name) => !isInside(boxes[name], boxes.map),
         ),
         canvasDelta:
