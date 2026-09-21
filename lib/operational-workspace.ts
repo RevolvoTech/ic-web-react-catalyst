@@ -27,7 +27,7 @@ export interface DemoWaypoint {
 }
 
 export interface WorkspaceRouteDetail {
-  route: RouteAnalysis;
+  route: RouteAnalysis | null;
 }
 
 export interface WorkspaceHazardDetail {
@@ -140,11 +140,11 @@ export function publishWorkspaceAoi(aoi: WorkspaceAoi) {
   window.dispatchEvent(new CustomEvent<WorkspaceAoi>(WORKSPACE_AOI_EVENT, { detail: aoi }));
 }
 
-export function publishWorkspaceRoute(route: RouteAnalysis) {
+export function publishWorkspaceRoute(route: RouteAnalysis | null) {
   window.dispatchEvent(new CustomEvent<WorkspaceRouteDetail>(WORKSPACE_ROUTE_EVENT, {
     detail: { route },
   }));
-  publishWorkspaceAoi(aoiFromRoute(route));
+  if (route) publishWorkspaceAoi(aoiFromRoute(route));
 }
 
 export function publishWorkspaceHazard(hazard: HazardAnalysis | null) {

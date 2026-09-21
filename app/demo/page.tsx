@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { QgisDemo } from "@/components/qgis-demo";
-import { RoutePlanner } from "@/components/route-planner";
-import { SatelliteExplorer } from "@/components/satellite-explorer";
-import { WeatherPanel } from "@/components/weather-panel";
+import { DemoWorkspace } from "@/components/demo-workspace";
 
 export const metadata: Metadata = {
   title: "Expedition Operations Demo",
@@ -24,11 +21,8 @@ export default function DemoPage() {
   return (
     <>
       <Suspense fallback={<DemoFallback />}>
-        <QgisDemo />
+        <DemoWorkspace />
       </Suspense>
-      <WeatherPanel />
-      <RoutePlanner />
-      <SatelliteExplorer />
     </>
   );
 }

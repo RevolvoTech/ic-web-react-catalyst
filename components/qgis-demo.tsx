@@ -93,7 +93,7 @@ function formatTimestamp(value: string) {
   }).format(new Date(value));
 }
 
-export function QgisDemo() {
+export function QgisDemo({ children, showGpsDetails = true }: { children?: React.ReactNode; showGpsDetails?: boolean }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -159,28 +159,14 @@ export function QgisDemo() {
 
   return (
     <div ref={experienceRef} className="demo-experience">
-      <section className="demo-intro earth-intro shell">
-        <div>
-          <p className="eyebrow">Global GIS workspace</p>
-          <h1>Explore the Earth.<br /><em>Layer the evidence.</em></h1>
-        </div>
-        <div className="demo-intro__copy">
-          <StatusBadge tone="information">ArcGIS 3D</StatusBadge>
-          <p>
-            Pan from a global view into mountain terrain, then compare route, position, weather,
-            hazard, and Copernicus evidence without treating any layer as a safety declaration.
-          </p>
-        </div>
-      </section>
-
       <section className="operations-console operations-console--primary shell" aria-labelledby="console-title">
         <header className="operations-console__header">
           <div>
-            <span className="data-label">Global scene · active area of interest</span>
-            <h2 id="console-title">Interactive Earth workspace · 3D terrain</h2>
+            <span className="data-label">Catalyst GIS</span>
+            <h1 id="console-title">Expedition map</h1>
           </div>
           <div className="operations-console__statuses" aria-live="polite">
-            <StatusBadge tone="information">ArcGIS 3D</StatusBadge>
+            <StatusBadge tone="information">ArcGIS</StatusBadge>
             {snapshot?.mode === "live" ? (
               <StatusBadge tone="information">Live</StatusBadge>
             ) : (
@@ -224,7 +210,7 @@ export function QgisDemo() {
         <div className="operations-console__workspace" aria-busy={busy}>
           <QgisMap snapshot={snapshot} busy={busy} />
 
-          <aside className="position-inspector" aria-label="GPS position inspector">
+          {showGpsDetails ? <aside className="position-inspector" aria-label="GPS position inspector">
             <div className="position-inspector__title">
               <div>
                 <span className="data-label">Team</span>
@@ -284,7 +270,7 @@ export function QgisDemo() {
                 <span>{snapshot?.mode === "live" ? "Connected source" : "Generated for demonstration"}</span>
               </div>
             </div>
-          </aside>
+          </aside> : null}
 
           <AnimatePresence initial={false}>
             {busy ? (
@@ -305,14 +291,16 @@ export function QgisDemo() {
           </AnimatePresence>
         </div>
 
-        <footer className="operations-console__footer">
+        {showGpsDetails ? <footer className="operations-console__footer">
           <span>Position data: {snapshot?.mode === "live" ? "Live" : "Simulated"}</span>
           <span>Map: ArcGIS SceneView · World Imagery + World Elevation</span>
           <span>Coordinates: WGS84</span>
-        </footer>
+        </footer> : null}
       </section>
 
-      <section className="scenario-section shell" aria-labelledby="scenario-title">
+      {children}
+
+      {showGpsDetails ? <><section className="scenario-section shell" aria-labelledby="scenario-title">
         <div className="scenario-section__heading">
           <div>
             <p className="eyebrow">GPS state preview</p>
@@ -368,7 +356,7 @@ export function QgisDemo() {
             </div>
           )}
         </div>
-      </section>
+      </section></> : null}
 
     </div>
   );

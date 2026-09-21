@@ -18,7 +18,7 @@ const routes = [
   },
   {
     path: "/demo",
-    h1: /Explore the Earth\.\s+Layer the evidence\./i,
+    h1: /Expedition map/i,
     currentNavigationItem: null,
   },
 ] as const;
@@ -37,6 +37,12 @@ function consoleWorkspace(page: Page) {
   return page.locator(".operations-console__workspace");
 }
 
+async function openEvidence(page: Page, label: string) {
+  const tabs = page.getByRole("group", { name: "Evidence details" });
+  if (!(await tabs.isVisible())) await page.getByRole("button", { name: "View evidence" }).click();
+  await tabs.getByRole("button", { name: label }).click();
+}
+
 async function waitForCurrentFixture(page: Page) {
   await page.goto("/demo");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -45,6 +51,7 @@ async function waitForCurrentFixture(page: Page) {
 }
 
 async function selectScenario(page: Page, label: string, state: string) {
+  await openEvidence(page, "GPS simulation");
   const button = scenarioGroup(page).getByRole("button", {
     name: new RegExp(`^${label}\\b`, "i"),
   });
@@ -119,6 +126,23 @@ test.describe("route structure", () => {
 });
 
 test.describe("QGIS demo state lab", () => {
+  test("opens on one uncluttered map and reveals details only on request", async ({ page }) => {
+    await waitForCurrentFixture(page);
+    await expect(page.getByRole("button", { name: "Place points" })).toBeVisible();
+    await expect(page.locator(".position-inspector")).toHaveCount(0);
+    await expect(page.locator(".route-section")).toBeHidden();
+    await expect(page.locator(".weather-section")).toBeHidden();
+    await expect(page.locator(".satellite-experience")).toBeHidden();
+
+    await openEvidence(page, "Weather");
+    await expect(page.locator(".weather-section")).toBeVisible();
+    await expect(page.locator(".route-section")).toBeHidden();
+    await openEvidence(page, "GPS simulation");
+    await expect(page.locator(".position-inspector")).toBeVisible();
+    await page.getByRole("button", { name: "Hide evidence" }).click();
+    await expect(page.locator(".position-inspector")).toHaveCount(0);
+  });
+
   test("same-origin reverse geocoder validates and names the map center", async ({ request }) => {
     const response = await request.get("/api/geocode/reverse?latitude=35.742&longitude=76.519");
     expect(response.status()).toBe(200);
@@ -183,7 +207,7 @@ test.describe("QGIS demo state lab", () => {
     await expect(inspector.getByText("±12 m", { exact: true })).toBeVisible();
     await expect(inspector.getByText("Catalyst GPS simulation", { exact: true })).toBeVisible();
     await expect(inspector.getByText("Generated for demonstration", { exact: true })).toBeVisible();
-    await expect(page.locator(".qgis-map__legend").getByText("Planned route", { exact: true })).toBeVisible();
+    await expect(page.locator(".qgis-map__legend").getByText("Demo route · simulated", { exact: true })).toBeVisible();
     await expect(page.getByText("Coordinates: WGS84", { exact: true })).toBeVisible();
   });
 
@@ -196,7 +220,7 @@ test.describe("QGIS demo state lab", () => {
     await map.scrollIntoViewIfNeeded();
     await expect(mapShell).toHaveAttribute("data-map-ready", "true", { timeout: 30_000 });
     await expect(mapShell).toHaveAttribute("data-operational-focus", "latest-position");
-    await expect(centerLabel.getByText("Viewing area", { exact: true })).toBeVisible();
+    await expect(centerLabel.getByText("Map center", { exact: true })).toBeVisible();
     await expect.poll(async () => {
       const text = await centerLabel.locator("span").nth(1).textContent();
       const match = text?.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
@@ -204,8 +228,7 @@ test.describe("QGIS demo state lab", () => {
       return Math.abs(Number(match[1]) - 35.7486) < 0.12 && Math.abs(Number(match[2]) - 76.5296) < 0.12;
     }, { timeout: 15_000 }).toBe(true);
     await expect(centerLabel.getByText("Karakoram map center, Gilgit-Baltistan, Pakistan", { exact: true })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: "2D Overhead" })).toHaveAttribute("aria-pressed", "false");
-    await expect(page.getByRole("button", { name: "3D Terrain" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Switch to 2D overhead" })).toBeVisible();
 
     const layersButton = page.getByRole("button", { name: "Layers", exact: true });
     await layersButton.click();
@@ -219,29 +242,28 @@ test.describe("QGIS demo state lab", () => {
     await layersDialog.getByRole("button", { name: /Satellite/ }).click();
     await expect(layersDialog.getByRole("button", { name: /Satellite/ })).toHaveAttribute("aria-pressed", "true");
     await layersDialog.getByRole("checkbox", { name: /Planned route/ }).uncheck();
-    await expect(page.locator(".qgis-map__legend").getByText("Planned route", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".qgis-map__legend").getByText("Demo route · simulated", { exact: true })).toHaveCount(0);
     await layersDialog.getByRole("checkbox", { name: /Planned route/ }).check();
     await page.keyboard.press("Escape");
     await expect(layersDialog).toHaveCount(0);
     await expect(layersButton).toBeFocused();
 
-    await page.getByRole("button", { name: "2D Overhead" }).click();
+    await page.getByRole("button", { name: "Switch to 2D overhead" }).click();
     await expect(mapShell).toHaveAttribute("data-view-mode", "2d");
-    await expect(centerLabel.getByText(/2D overhead/)).toBeVisible();
-    await page.getByRole("button", { name: "3D Terrain" }).click();
+    await page.getByRole("button", { name: "Switch to 3D terrain" }).click();
     await expect(mapShell).toHaveAttribute("data-view-mode", "3d");
-    await expect(centerLabel.getByText(/3D terrain/)).toBeVisible();
 
     const box = await map.boundingBox();
     expect(box).not.toBeNull();
     const beforeWaypoints = await centerLabel.locator("span").nth(1).textContent();
-    await page.locator(".earth-panel-action").click();
+    await page.getByRole("button", { name: "Place points" }).click();
     await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.52, (box?.y ?? 0) + (box?.height ?? 0) * 0.46);
     await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) * 0.62, (box?.y ?? 0) + (box?.height ?? 0) * 0.52);
-    await expect(page.getByRole("list", { name: "Demonstration waypoints" }).getByRole("listitem")).toHaveCount(2);
+    await expect(page.getByRole("button", { name: "Analyze route" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Clear all waypoints" })).toBeVisible();
     await page.waitForTimeout(900);
     expect(await centerLabel.locator("span").nth(1).textContent()).toBe(beforeWaypoints);
-    await page.locator(".earth-panel-action").click();
+    await page.getByRole("button", { name: "Place points" }).click();
 
     const before = await centerLabel.locator("span").nth(1).textContent();
     await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2);
@@ -336,6 +358,7 @@ test.describe("QGIS demo state lab", () => {
 
   test("URL state opens directly and survives a reload", async ({ page }) => {
     await page.goto("/demo?state=stale");
+    await openEvidence(page, "GPS simulation");
     const staleButton = scenarioGroup(page).getByRole("button", { name: /^Stale\b/i });
 
     await expect(staleButton).toHaveAttribute("aria-pressed", "true");
@@ -343,6 +366,7 @@ test.describe("QGIS demo state lab", () => {
     await expect(consoleStatuses(page).getByText("Stale", { exact: true })).toBeVisible();
 
     await page.reload();
+    await openEvidence(page, "GPS simulation");
     await expect(page).toHaveURL(/\?state=stale$/);
     await expect(staleButton).toHaveAttribute("aria-pressed", "true");
     await expect(consoleWorkspace(page)).toHaveAttribute("aria-busy", "false");
@@ -351,6 +375,7 @@ test.describe("QGIS demo state lab", () => {
 
   test("announces a loading state while a scenario request is pending", async ({ page }) => {
     await waitForCurrentFixture(page);
+    await openEvidence(page, "GPS simulation");
 
     let releaseRequest!: () => void;
     const requestGate = new Promise<void>((resolve) => {
@@ -603,7 +628,7 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
     },
     {
       path: "/demo",
-      top: ".earth-intro",
+      top: ".operations-console__header",
       replayTarget: ".track-list > div:last-child",
       covered: [
         ".scenario-switcher > button",
@@ -616,6 +641,7 @@ test("Platform, GIS, and Demo sections all animate and replay on scroll", async 
   for (const route of pages) {
     if (route.path === "/demo") {
       await waitForCurrentFixture(page);
+      await openEvidence(page, "GPS simulation");
     } else {
       await page.goto(route.path);
     }

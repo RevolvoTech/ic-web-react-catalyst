@@ -46,7 +46,7 @@ export interface RouteAnalysis {
     maximumElevationM: number | null;
     estimatedHours: number;
   };
-  source: { format: "GPX 1.x"; analyzedAt: string; pointCount: number };
+  source: { format: "GPX 1.x" | "Map waypoints"; analyzedAt: string; pointCount: number };
   terrainAssessment: { method: "route-gradient-only"; coverage: "partial"; notice: string };
 }
 
@@ -79,7 +79,7 @@ export function isRouteAnalysis(value: unknown): value is RouteAnalysis {
   if (!Array.isArray(value.points) || value.points.length < 2 || !value.points.every(point)) return false;
   if (!Array.isArray(value.waypoints) || !value.waypoints.every(waypoint) || !Array.isArray(value.segments) || !value.segments.every(segment)) return false;
   if (!record(value.summary) || !finite(value.summary.distanceKm) || !finite(value.summary.elevationGainM) || !finite(value.summary.elevationLossM) || !nullableFinite(value.summary.minimumElevationM) || !nullableFinite(value.summary.maximumElevationM) || !finite(value.summary.estimatedHours)) return false;
-  return record(value.source) && value.source.format === "GPX 1.x" && typeof value.source.analyzedAt === "string" && finite(value.source.pointCount) && record(value.terrainAssessment) && value.terrainAssessment.method === "route-gradient-only" && value.terrainAssessment.coverage === "partial" && typeof value.terrainAssessment.notice === "string";
+  return record(value.source) && ["GPX 1.x", "Map waypoints"].includes(String(value.source.format)) && typeof value.source.analyzedAt === "string" && finite(value.source.pointCount) && record(value.terrainAssessment) && value.terrainAssessment.method === "route-gradient-only" && value.terrainAssessment.coverage === "partial" && typeof value.terrainAssessment.notice === "string";
 }
 
 export function routeValue(value: number | null, unit: string, digits = 0) {

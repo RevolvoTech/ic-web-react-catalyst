@@ -1,14 +1,12 @@
 "use client";
 
 import {
-  ChevronLeft,
   CloudSun,
   Globe2,
   Layers3,
   LocateFixed,
   Map as MapIcon,
   MapPin,
-  MousePointer2,
   Satellite,
   Trash2,
   X,
@@ -21,8 +19,7 @@ import { loadArcGisSdk } from "@/lib/arcgis-loader";
 import { isMapLocation, type MapLocation } from "@/lib/geocode";
 import { isHazardAnalysis, type HazardAnalysis, type HazardRiskLevel } from "@/lib/hazard";
 import {
-  aoiFromWaypoints,
-  publishWorkspaceAoi,
+  publishWorkspaceRoute,
   WORKSPACE_HAZARD_EVENT,
   WORKSPACE_ROUTE_EVENT,
   WORKSPACE_WEATHER_EVENT,
@@ -34,6 +31,7 @@ import {
 import type { QgisSnapshot } from "@/lib/qgis";
 import { isRouteAnalysis, type RouteAnalysis } from "@/lib/route";
 import { isRouteWeatherAnalysis, type RouteWeatherAnalysis, type RouteWeatherStatus } from "@/lib/route-weather";
+import { openWorkspaceDetail } from "@/lib/workspace-detail";
 
 interface QgisMapProps {
   snapshot: QgisSnapshot | null;
@@ -100,6 +98,7 @@ interface ArcGisConstructors {
   SimpleFillSymbol: ArcGisConstructor<object>;
   SimpleLineSymbol: ArcGisConstructor<object>;
   SimpleMarkerSymbol: ArcGisConstructor<object>;
+  TextSymbol: ArcGisConstructor<object>;
 }
 
 type ArcGisModules = [
@@ -110,6 +109,7 @@ type ArcGisModules = [
   ArcGisConstructor<ArcGisGeometry>,
   ArcGisConstructor<ArcGisGeometry>,
   ArcGisConstructor<ArcGisGeometry>,
+  ArcGisConstructor<object>,
   ArcGisConstructor<object>,
   ArcGisConstructor<object>,
   ArcGisConstructor<object>,
@@ -155,6 +155,7 @@ function colorsFromDocument() {
   const read = (name: string) => styles.getPropertyValue(name).trim();
   return {
     canvas: read("--color-canvas-alternate"),
+    text: read("--color-text"),
     action: read("--color-action"),
     information: read("--color-information"),
     warning: read("--color-warning"),
@@ -201,7 +202,7 @@ function buildWaypoints(
   constructors: ArcGisConstructors,
   colors: ReturnType<typeof colorsFromDocument>,
 ) {
-  return waypoints.map((waypoint) => new constructors.Graphic({
+  return waypoints.flatMap((waypoint, index) => [new constructors.Graphic({
     geometry: new constructors.Point({
       longitude: waypoint.longitude,
       latitude: waypoint.latitude,
@@ -213,7 +214,21 @@ function buildWaypoints(
       style: "diamond",
       outline: { color: colors.canvas, width: 3 },
     }),
-  }));
+  }), new constructors.Graphic({
+    geometry: new constructors.Point({
+      longitude: waypoint.longitude,
+      latitude: waypoint.latitude,
+      spatialReference: { wkid: 4326 },
+    }),
+    symbol: new constructors.TextSymbol({
+      text: `${index + 1} · ${waypoint.latitude.toFixed(4)}, ${waypoint.longitude.toFixed(4)}`,
+      color: colors.text,
+      haloColor: colors.canvas,
+      haloSize: 2,
+      yoffset: 22,
+      font: { size: 10, weight: "bold", family: "sans-serif" },
+    }),
+  })]);
 }
 
 function hazardColor(risk: HazardRiskLevel, colors: ReturnType<typeof colorsFromDocument>) {
@@ -342,6 +357,8 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const layersButtonRef = useRef<HTMLButtonElement>(null);
   const layersPanelRef = useRef<HTMLDivElement>(null);
   const waypointModeRef = useRef(false);
+  const waypointSequenceRef = useRef(0);
+  const waypointRequestRef = useRef<AbortController | null>(null);
   const viewModeRef = useRef<MapViewMode>("3d");
   const initialFocusAppliedRef = useRef(false);
   const focusedRouteRef = useRef<RouteAnalysis | null>(null);
@@ -353,7 +370,6 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const [center, setCenter] = useState<MapCenter>(INITIAL_CENTER);
   const [location, setLocation] = useState<MapLocation | null>(null);
   const [locationState, setLocationState] = useState<LocationState>("idle");
-  const [panelOpen, setPanelOpen] = useState(true);
   const [layersOpen, setLayersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MapViewMode>("3d");
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>("satellite");
@@ -361,6 +377,8 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   const [waypointMode, setWaypointMode] = useState(false);
   const [waypoints, setWaypoints] = useState<DemoWaypoint[]>([]);
   const [activeRoute, setActiveRoute] = useState<RouteAnalysis | null>(null);
+  const [waypointBusy, setWaypointBusy] = useState(false);
+  const [waypointError, setWaypointError] = useState<string | null>(null);
   const [hazardAnalysis, setHazardAnalysis] = useState<HazardAnalysis | null>(null);
   const [routeWeather, setRouteWeather] = useState<RouteWeatherAnalysis | null>(null);
   const [layerVisibility, setLayerVisibility] = useState({
@@ -405,19 +423,17 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   }, [layersOpen]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (window.matchMedia("(max-width: 48rem)").matches) setPanelOpen(false);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
     const routeListener = (event: Event) => {
       const detail = (event as CustomEvent<WorkspaceRouteDetail>).detail;
-      if (detail && isRouteAnalysis(detail.route)) {
+      if (detail?.route === null) {
+        setActiveRoute(null);
+        setHazardAnalysis(null);
+      } else if (detail && isRouteAnalysis(detail.route)) {
         setActiveRoute(detail.route);
-        setWaypoints([]);
-        setWaypointMode(false);
+        if (detail.route.source.format === "GPX 1.x") {
+          setWaypoints([]);
+          setWaypointMode(false);
+        }
       }
     };
     const hazardListener = (event: Event) => {
@@ -479,6 +495,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           SimpleFillSymbolConstructor,
           SimpleLineSymbolConstructor,
           SimpleMarkerSymbolConstructor,
+          TextSymbolConstructor,
           reactiveUtils,
         ] = await arcgis.import<ArcGisModules>([
           "@arcgis/core/Map.js",
@@ -491,6 +508,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           "@arcgis/core/symbols/SimpleFillSymbol.js",
           "@arcgis/core/symbols/SimpleLineSymbol.js",
           "@arcgis/core/symbols/SimpleMarkerSymbol.js",
+          "@arcgis/core/symbols/TextSymbol.js",
           "@arcgis/core/core/reactiveUtils.js",
         ]);
         if (cancelled || !containerRef.current) return;
@@ -503,6 +521,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           SimpleFillSymbol: SimpleFillSymbolConstructor,
           SimpleLineSymbol: SimpleLineSymbolConstructor,
           SimpleMarkerSymbol: SimpleMarkerSymbolConstructor,
+          TextSymbol: TextSymbolConstructor,
         };
         constructorsRef.current = constructors;
         const colors = colorsFromDocument();
@@ -618,17 +637,20 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           const latitude = event.mapPoint?.latitude;
           const longitude = event.mapPoint?.longitude;
           if (typeof latitude !== "number" || typeof longitude !== "number") return;
-          setWaypoints((current) => {
-            if (current.length >= 8) return current;
-            return [...current, {
-              id: `demo-waypoint-${current.length + 1}`,
-              latitude,
-              longitude,
-              elevationM: typeof event.mapPoint?.z === "number" && Number.isFinite(event.mapPoint.z)
-                ? Math.max(0, Math.round(event.mapPoint.z))
-                : null,
-            }];
-          });
+          waypointRequestRef.current?.abort();
+          waypointRequestRef.current = null;
+          setWaypointBusy(false);
+          setWaypointError(null);
+          publishWorkspaceRoute(null);
+          const waypointId = `demo-waypoint-${++waypointSequenceRef.current}`;
+          setWaypoints((current) => [...current, {
+            id: waypointId,
+            latitude,
+            longitude,
+            elevationM: typeof event.mapPoint?.z === "number" && Number.isFinite(event.mapPoint.z)
+              ? Math.max(0, Math.round(event.mapPoint.z))
+              : null,
+          }]);
         });
       } catch {
         if (!cancelled) setMapError(true);
@@ -688,7 +710,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     const colors = colorsFromDocument();
     const routeCoordinates = activeRoute
       ? activeRoute.points.map((point) => [point.longitude, point.latitude])
-      : waypoints.length >= 2
+      : waypoints.length > 0
         ? waypoints.map((point) => [point.longitude, point.latitude])
         : plannedRouteCoordinates;
     const routeGraphics = buildPlannedRoute(routeCoordinates, constructors, colors);
@@ -702,7 +724,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
     layers.hazards.addMany(buildHazards(hazardAnalysis, constructors, colors));
     layers.weather.addMany(buildWeather(routeWeather, constructors, colors));
 
-    if (activeRoute && initialFocusAppliedRef.current && focusedRouteRef.current !== activeRoute && routeGraphics[0]?.geometry) {
+    if (activeRoute && activeRoute.source.format !== "Map waypoints" && initialFocusAppliedRef.current && focusedRouteRef.current !== activeRoute && routeGraphics[0]?.geometry) {
       focusedRouteRef.current = activeRoute;
       void view.goTo(
         { target: routeGraphics[0].geometry, tilt: CAMERA_TILT[viewModeRef.current], heading: 0 },
@@ -853,16 +875,46 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
   }
 
   function clearWaypoints() {
+    waypointRequestRef.current?.abort();
+    waypointRequestRef.current = null;
+    setWaypointBusy(false);
+    setWaypointError(null);
+    publishWorkspaceRoute(null);
     setWaypoints([]);
     setWaypointMode(false);
   }
 
-  function useWaypointArea() {
-    const aoi = aoiFromWaypoints(waypoints);
-    if (!aoi) return;
-    setActiveRoute(null);
-    setHazardAnalysis(null);
-    publishWorkspaceAoi(aoi);
+  async function analyzeWaypoints() {
+    if (waypoints.length < 2) return;
+    waypointRequestRef.current?.abort();
+    const controller = new AbortController();
+    waypointRequestRef.current = controller;
+    setWaypointBusy(true);
+    setWaypointError(null);
+    try {
+      const response = await fetch("/api/routes/waypoints", {
+        method: "POST",
+        body: JSON.stringify({ name: `Map route · ${waypoints.length} waypoints`, waypoints: waypoints.map(({ latitude, longitude }) => ({ latitude, longitude })) }),
+        headers: { "content-type": "application/json", accept: "application/json" },
+        signal: controller.signal,
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "object" && payload.error !== null && "message" in payload.error && typeof payload.error.message === "string" ? payload.error.message : "Map route analysis is unavailable.";
+        throw new Error(message);
+      }
+      if (!isRouteAnalysis(payload)) throw new Error("The route service returned an unexpected response.");
+      if (waypointRequestRef.current !== controller) return;
+      publishWorkspaceRoute(payload);
+      openWorkspaceDetail("route");
+    } catch (error) {
+      if (!controller.signal.aborted && waypointRequestRef.current === controller) setWaypointError(error instanceof Error ? error.message : "Map route analysis is unavailable.");
+    } finally {
+      if (waypointRequestRef.current === controller) {
+        waypointRequestRef.current = null;
+        setWaypointBusy(false);
+      }
+    }
   }
 
   function toggleLayer(layer: keyof typeof layerVisibility) {
@@ -889,7 +941,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         : "Karakoram pilot area");
 
   return (
-    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-view-mode={viewMode} data-operational-focus={operationalFocus} data-waypoint-mode={waypointMode || undefined} data-tools-open={panelOpen || undefined} data-layers-open={layersOpen || undefined}>
+    <div ref={mapRef} className="qgis-map" data-map-ready={ready || undefined} data-map-engine="arcgis-sceneview" data-view-mode={viewMode} data-operational-focus={operationalFocus} data-waypoint-mode={waypointMode || undefined} data-waypoint-error={Boolean(waypointError) || undefined} data-layers-open={layersOpen || undefined}>
       <div
         ref={containerRef}
         className="qgis-map__surface"
@@ -897,80 +949,13 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         aria-label="Interactive Earth with expedition data layers"
       />
       <div className="qgis-map__grid" aria-hidden="true" />
-      <aside className="earth-workspace-panel" data-open={panelOpen || undefined} aria-label="Map places and route tools">
-        <button
-          className="earth-workspace-panel__toggle"
-          type="button"
-          aria-expanded={panelOpen}
-          onClick={() => setPanelOpen((current) => !current)}
-        >
-          {panelOpen ? <ChevronLeft aria-hidden="true" /> : <MapIcon aria-hidden="true" />}
-          <span>{panelOpen ? "Hide map tools" : "Open map tools"}</span>
-        </button>
-        {panelOpen ? (
-          <div className="earth-workspace-panel__content">
-            <header>
-              <span className="data-label">Places</span>
-              <strong>{activeRoute?.name ?? (waypoints.length ? "Waypoint demonstration" : "Karakoram pilot")}</strong>
-              <small>{activeRoute ? "Uploaded GPX controls the active area" : waypoints.length ? `${waypoints.length} of 8 demo points placed` : "Default demonstration area"}</small>
-            </header>
-
-            <fieldset className="earth-view-mode">
-              <legend className="data-label">View</legend>
-              <button
-                type="button"
-                aria-pressed={viewMode === "2d"}
-                onClick={() => changeViewMode("2d")}
-                disabled={!ready}
-              >
-                <strong>2D</strong>
-                <small>Overhead</small>
-              </button>
-              <button
-                type="button"
-                aria-pressed={viewMode === "3d"}
-                onClick={() => changeViewMode("3d")}
-                disabled={!ready}
-              >
-                <strong>3D</strong>
-                <small>Terrain</small>
-              </button>
-            </fieldset>
-
-            <div className="earth-workspace-panel__waypoints">
-              <button
-                type="button"
-                className="earth-panel-action"
-                aria-pressed={waypointMode}
-                onClick={() => setWaypointMode((current) => !current)}
-                disabled={!ready || waypoints.length >= 8}
-              >
-                <MapPin aria-hidden="true" />
-                <span><strong>{waypointMode ? "Click terrain to add points" : "Add demo waypoints"}</strong><small>Demo navigation only · up to 8</small></span>
-              </button>
-              {waypoints.length ? (
-                <ol aria-label="Demonstration waypoints">
-                  {waypoints.map((waypoint, index) => (
-                    <li key={waypoint.id}>
-                      <span>{index + 1}</span>
-                      <small>{waypoint.latitude.toFixed(4)}, {waypoint.longitude.toFixed(4)}</small>
-                      <button type="button" onClick={() => setWaypoints((current) => current.filter((item) => item.id !== waypoint.id))} aria-label={`Remove waypoint ${index + 1}`}><Trash2 aria-hidden="true" /></button>
-                    </li>
-                  ))}
-                </ol>
-              ) : null}
-              {waypoints.length >= 2 ? (
-                <div className="earth-workspace-panel__waypoint-actions">
-                  <button type="button" onClick={useWaypointArea}>Use waypoint area</button>
-                  <button type="button" onClick={clearWaypoints}>Clear</button>
-                </div>
-              ) : null}
-            </div>
-
-            <p className="earth-workspace-panel__hint"><MousePointer2 aria-hidden="true" /> Drag to move · scroll, pinch, or right-drag to zoom · rotation locked</p>
-          </div>
-        ) : null}
-      </aside>
+      <div className="earth-map-toolbar" role="group" aria-label="Map route tools">
+        <button type="button" onClick={() => changeViewMode(viewMode === "3d" ? "2d" : "3d")} disabled={!ready} aria-label={`Switch to ${viewMode === "3d" ? "2D overhead" : "3D terrain"}`} title={`Switch to ${viewMode === "3d" ? "2D overhead" : "3D terrain"}`}><MapIcon aria-hidden="true" /><span>{viewMode === "3d" ? "3D" : "2D"}</span></button>
+        <button type="button" aria-pressed={waypointMode} onClick={() => setWaypointMode((current) => !current)} disabled={!ready} title={waypointMode ? "Stop placing waypoints" : "Place waypoints on the map"}><MapPin aria-hidden="true" /><span>Place points</span></button>
+        <button type="button" className="earth-map-toolbar__analyze" onClick={() => void analyzeWaypoints()} disabled={waypointBusy || waypoints.length < 2} title={waypoints.length < 2 ? "Place at least two waypoints first" : "Analyze the straight-line route"}>{waypointBusy ? "Sampling terrain…" : "Analyze route"}</button>
+        {waypoints.length ? <button type="button" onClick={clearWaypoints} aria-label="Clear all waypoints" title="Clear all waypoints"><Trash2 aria-hidden="true" /></button> : null}
+        {waypointError ? <span className="earth-map-toolbar__error" role="alert">{waypointError}</span> : null}
+      </div>
       <div className="earth-layers-control" data-open={layersOpen || undefined}>
         <button
           ref={layersButtonRef}
@@ -1016,7 +1001,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
 
             <fieldset className="earth-layer-list">
               <legend className="data-label">Operational overlays</legend>
-              <label><input type="checkbox" checked={layerVisibility.route} onChange={() => toggleLayer("route")} /><i data-kind="planned" /><span><strong>Planned route</strong><small>GPX or demonstration path</small></span></label>
+              <label><input type="checkbox" checked={layerVisibility.route} onChange={() => toggleLayer("route")} /><i data-kind="planned" /><span><strong>Planned route</strong><small>Drawn line or GPX</small></span></label>
               <label><input type="checkbox" checked={layerVisibility.track} onChange={() => toggleLayer("track")} /><i data-kind="actual" /><span><strong>Recent GPS track</strong><small>{snapshot?.track.length ? `${snapshot.track.length} recorded points` : "No track received"}</small></span></label>
               <label><input type="checkbox" checked={layerVisibility.position} onChange={() => toggleLayer("position")} /><i data-kind="position" /><span><strong>Latest position</strong><small>{snapshot?.position ? "Current map fix" : "No position received"}</small></span></label>
               <label><input type="checkbox" checked={layerVisibility.hazards} onChange={() => toggleLayer("hazards")} /><i data-kind="hazard" /><span><strong>Hazard screening</strong><small>{hazardAnalysis ? `${hazardAnalysis.zones.features.length} terrain zones` : "Awaiting hazard analysis"}</small></span></label>
@@ -1028,10 +1013,9 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         ) : null}
       </div>
       <div className="qgis-map__label" aria-live="polite">
-        <span className="data-label">Viewing area</span>
+        <span className="data-label">Map center</span>
         <strong>{locationLabel}</strong>
-        <span>{center.latitude.toFixed(4)}, {center.longitude.toFixed(4)} · Z{center.zoom.toFixed(1)}</span>
-        <small>ArcGIS global · {viewMode === "3d" ? "3D terrain" : "2D overhead"} · {snapshot?.mode === "live" ? "Position plot" : "SIMULATED route overlay"}</small>
+        <span>{center.latitude.toFixed(4)}, {center.longitude.toFixed(4)}</span>
       </div>
       <div className="qgis-map__scene-actions" aria-label="Scene controls">
         <button type="button" onClick={() => zoomBy(1)} disabled={!ready} aria-label="Zoom in" title="Zoom in"><ZoomIn aria-hidden="true" /></button>
@@ -1048,7 +1032,7 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
         </button>
       </div>
       <div className="qgis-map__legend" aria-label="Map legend">
-        {layerVisibility.route ? <span><i data-kind="planned" /> Planned route</span> : null}
+        {layerVisibility.route && (activeRoute || waypoints.length !== 1) ? <span><i data-kind="planned" /> {activeRoute ? activeRoute.source.format === "Map waypoints" ? "Drawn route" : "GPX route" : waypoints.length ? "Unverified drawn line" : "Demo route · simulated"}</span> : null}
         {layerVisibility.track ? <span><i data-kind="actual" /> Recent track</span> : null}
         {layerVisibility.position ? <span><i data-kind="position" /> Latest position</span> : null}
         {hazardAnalysis && layerVisibility.hazards ? <span><i data-kind="hazard" /> Terrain screening</span> : null}

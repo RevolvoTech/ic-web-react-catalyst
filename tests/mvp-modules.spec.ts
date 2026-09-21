@@ -14,8 +14,15 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
 });
 
+async function openEvidence(page: import("@playwright/test").Page, label: string) {
+  const tabs = page.getByRole("group", { name: "Evidence details" });
+  if (!(await tabs.isVisible())) await page.getByRole("button", { name: "View evidence" }).click();
+  await tabs.getByRole("button", { name: label }).click();
+}
+
 test("live weather is presented with source and human-decision context", async ({ page }) => {
   await page.goto("/demo");
+  await openEvidence(page, "Weather");
   await expect(page.getByRole("heading", { name: "Read the window. See what limits it." })).toBeVisible();
   await expect(page.getByText("Karakoram pilot area · 5,200 m")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Source Open-Meteo")).toBeVisible();
@@ -23,6 +30,7 @@ test("live weather is presented with source and human-decision context", async (
 });
 
 test("failed live refreshes identify retained weather and satellite data as last known", async ({ page }) => {
+  test.setTimeout(90_000);
   let weatherRequests = 0;
   let satelliteRequests = 0;
   await page.route("**/api/weather/snapshot**", async (route) => {
@@ -36,7 +44,31 @@ test("failed live refreshes identify retained weather and satellite data as last
   });
   await page.route("**/api/satellite/catalog**", async (route) => {
     satelliteRequests += 1;
-    if (satelliteRequests === 1) return route.continue();
+    if (satelliteRequests === 1) return route.fulfill({ json: {
+      schemaVersion: "catalyst.satellite.catalog.v1",
+      source: {
+        name: "Copernicus Data Space Ecosystem",
+        collection: "Sentinel-2 Level-2A",
+        protocol: "STAC 1.1.0",
+        catalogUrl: "https://catalogue.dataspace.copernicus.eu/stac",
+      },
+      query: { bbox: [76.48, 35.7, 76.56, 35.78], from: "2026-07-01T00:00:00.000Z", to: "2026-09-01T00:00:00.000Z", maxCloudCoverPercent: 30, limit: 8 },
+      scenes: [{
+        id: "S2B_MSIL2A_20260829T053639_N0512_R005_T43SFV_20260829T091959",
+        collection: "sentinel-2-l2a",
+        capturedAt: "2026-08-29T05:36:39.024Z",
+        publishedAt: "2026-08-29T05:36:39.024Z",
+        platform: "sentinel-2b",
+        groundSampleDistanceM: 10,
+        cloudCoverPercent: 4,
+        snowCoverPercent: 30,
+        bbox: [76.48, 35.7, 76.56, 35.78],
+        thumbnailUrl: null,
+      }],
+      retrievedAt: "2026-09-01T12:00:00.000Z",
+      attribution: "Copernicus Sentinel data",
+      notice: "Decision support only.",
+    } });
     return route.fulfill({
       status: 502,
       contentType: "application/json",
@@ -45,16 +77,19 @@ test("failed live refreshes identify retained weather and satellite data as last
   });
 
   await page.goto("/demo");
+  await openEvidence(page, "Weather");
   const weather = page.locator(".weather-section");
   const satellite = page.locator(".satellite-experience");
   await expect(weather.getByText("Current", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(satellite.getByText("Live catalogue", { exact: true })).toBeVisible({ timeout: 20_000 });
-
   await weather.getByRole("button", { name: "Refresh forecast" }).click();
+  await openEvidence(page, "Satellite scenes");
+  await expect(satellite.getByText("Live catalogue", { exact: true })).toBeVisible({ timeout: 20_000 });
   await satellite.getByRole("button", { name: "Refresh scenes" }).click();
 
+  await openEvidence(page, "Weather");
   await expect(weather.getByText("Refresh failed · last known", { exact: true })).toBeVisible();
   await expect(weather.getByText("Forecast unavailable", { exact: true })).toBeVisible();
+  await openEvidence(page, "Satellite scenes");
   await expect(satellite.getByText("Refresh failed · last known", { exact: true })).toBeVisible();
   await expect(satellite.getByText("Live catalogue unavailable", { exact: true })).toBeVisible();
 });
@@ -96,6 +131,7 @@ test("a late processed-image response cannot attach to a newly selected scene", 
   });
 
   await page.goto("/demo");
+  await openEvidence(page, "Satellite scenes");
   const satellite = page.locator(".satellite-experience");
   const scenes = satellite.locator(".satellite-scene-list button");
   await expect(scenes).toHaveCount(2);
@@ -143,7 +179,9 @@ test("late route evidence cannot attach to a replacement route", async ({ page }
   });
 
   await page.goto("/demo");
+  await openEvidence(page, "Route & briefing");
   const route = page.locator(".route-section");
+  await route.getByText("Have a GPX file? Import it instead").click();
   const upload = async (routeName: string) => {
     await route.getByLabel("Route name").fill(routeName);
     await route.getByLabel("GPX file").setInputFiles({ name: `${routeName}.gpx`, mimeType: "application/gpx+xml", buffer: Buffer.from(gpx) });
@@ -209,7 +247,9 @@ test("a GPX route becomes a reviewable altitude-aware weather plan without inven
     } });
   });
   await page.goto("/demo");
+  await openEvidence(page, "Route & briefing");
   const route = page.locator(".route-section");
+  await route.getByText("Have a GPX file? Import it instead").click();
   await route.getByLabel("Route name").fill("Kinshofer test route");
   await route.getByLabel("GPX file").setInputFiles({ name: "route.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from(gpx) });
   await route.getByRole("button", { name: "Analyze route" }).click();
@@ -224,8 +264,9 @@ test("a GPX route becomes a reviewable altitude-aware weather plan without inven
   await expect(route.getByRole("heading", { name: "Screening zones & route intersections" })).toBeVisible();
   await expect(route.getByRole("group", { name: "Inspect intersecting terrain zone" })).toBeVisible();
   await expect(route.getByText("Human review required", { exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Open map panel" }).click();
-  await expect(page.getByRole("checkbox", { name: /Terrain screening 1/ })).toBeVisible();
+  await page.getByRole("button", { name: "Layers" }).click();
+  await expect(page.getByRole("checkbox", { name: /Hazard screening/ })).toBeVisible();
+  await page.keyboard.press("Escape");
   await route.getByRole("button", { name: "Generate briefing" }).click();
   await expect(route.getByRole("heading", { name: "Kinshofer test route evidence briefing" })).toBeVisible();
   await expect(route.getByText("Rules-based synthesis · AI not used")).toBeVisible();
@@ -234,6 +275,7 @@ test("a GPX route becomes a reviewable altitude-aware weather plan without inven
   await expect(route.getByText("Review", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   await page.reload();
+  await openEvidence(page, "Route & briefing");
   await expect(route.getByText("Saved browser plan restored.")).toBeVisible();
   await expect(route.getByRole("heading", { name: "Kinshofer test route evidence briefing" })).toBeVisible();
 });

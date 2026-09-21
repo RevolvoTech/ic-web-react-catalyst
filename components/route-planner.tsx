@@ -9,6 +9,8 @@ import {
   publishWorkspaceHazard,
   publishWorkspaceRoute,
   publishWorkspaceWeather,
+  WORKSPACE_ROUTE_EVENT,
+  type WorkspaceRouteDetail,
 } from "@/lib/operational-workspace";
 import { isRouteAnalysis, routeValue, type RouteAnalysis } from "@/lib/route";
 import { isRouteWeatherAnalysis, type RouteWeatherAnalysis, type RouteWeatherStatus } from "@/lib/route-weather";
@@ -88,7 +90,7 @@ function ElevationProfile({ route }: { route: RouteAnalysis }) {
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${(point.cumulativeDistanceKm / Math.max(0.001, route.summary.distanceKm)) * 800} ${210 - (((point.elevationM ?? minimum) - minimum) / range) * 180}`).join(" ");
   return (
     <div className="route-profile">
-      {points.length > 1 ? <svg viewBox="0 0 800 240" role="img" aria-labelledby="route-profile-title route-profile-description"><title id="route-profile-title">Route elevation profile</title><desc id="route-profile-description">Elevation from {minimum.toLocaleString()} to {maximum.toLocaleString()} metres across {route.summary.distanceKm} kilometres. Exact segment values follow.</desc><path className="route-profile__area" d={`${path} L 800 230 L 0 230 Z`} /><path className="route-profile__line" d={path} /><line x1="0" y1="230" x2="800" y2="230" /></svg> : <p className="route-profile__empty">This GPX file does not contain enough elevation points to draw a profile.</p>}
+      {points.length > 1 ? <svg viewBox="0 0 800 240" role="img" aria-labelledby="route-profile-title route-profile-description"><title id="route-profile-title">Route elevation profile</title><desc id="route-profile-description">Elevation from {minimum.toLocaleString()} to {maximum.toLocaleString()} metres across {route.summary.distanceKm} kilometres. Exact segment values follow.</desc><path className="route-profile__area" d={`${path} L 800 230 L 0 230 Z`} /><path className="route-profile__line" d={path} /><line x1="0" y1="230" x2="800" y2="230" /></svg> : <p className="route-profile__empty">This route does not contain enough elevation points to draw a profile.</p>}
     </div>
   );
 }
@@ -105,7 +107,7 @@ function TerrainPlanView({ route, terrain }: { route: RouteAnalysis; terrain: Te
   return (
     <div className="terrain-plan-view">
       <svg viewBox="0 0 800 280" role="img" aria-labelledby="terrain-route-title terrain-route-description">
-        <title id="terrain-route-title">Copernicus terrain slope along the uploaded route</title>
+        <title id="terrain-route-title">Copernicus terrain slope along the active route</title>
         <desc id="terrain-route-description">Each numbered route segment is styled by its maximum intersecting DEM slope class. Exact values follow below.</desc>
         {route.segments.map((segment, index) => {
           const points = route.points.slice(segment.fromPointIndex, segment.toPointIndex + 1);
@@ -135,7 +137,7 @@ function RouteWeatherPlan({ route, weather, selectedId, onSelect }: { route: Rou
     <div className="route-weather-workspace">
       <div className="route-weather-plan">
         <svg viewBox="0 0 800 280" role="img" aria-labelledby="route-weather-title route-weather-description">
-          <title id="route-weather-title">Twenty-four hour wind evidence along the uploaded route</title>
+          <title id="route-weather-title">Twenty-four hour wind evidence along the active route</title>
           <desc id="route-weather-description">Route segments are styled by their relationship to configured altitude-band sustained-wind thresholds. Exact values and text labels follow.</desc>
           {route.segments.map((segment, index) => {
             const points = route.points.slice(segment.fromPointIndex, segment.toPointIndex + 1);
@@ -177,7 +179,7 @@ function HazardPlanView({ route, hazard }: { route: RouteAnalysis; hazard: Hazar
       <div className="hazard-map-panel">
         <fieldset><legend>Show terrain-screening layers</legend>{(["low", "moderate", "high", "critical"] as const).map((risk) => <label key={risk}><input type="checkbox" checked={visible[risk]} onChange={(event) => setVisible((current) => ({ ...current, [risk]: event.target.checked }))} /><span data-risk={risk} aria-hidden="true" />{risk}</label>)}</fieldset>
         <svg viewBox="0 0 800 280" role="img" aria-labelledby="hazard-map-title hazard-map-description">
-          <title id="hazard-map-title">Copernicus DEM screening zones along the uploaded route</title>
+          <title id="hazard-map-title">Copernicus DEM screening zones along the active route</title>
           <desc id="hazard-map-description">Terrain-derived polygons are colored and patterned by screening level. They require human validation and are not current avalanche observations.</desc>
           {hazard.zones.features.filter((zone) => visible[zone.properties.riskLevel]).map((zone) => <polygon key={zone.id} className="hazard-zone" data-risk={zone.properties.riskLevel} data-selected={zone.id === selectedId || undefined} points={(zone.geometry.coordinates[0] ?? []).map((point) => `${x(point[0] ?? 0)},${y(point[1] ?? 0)}`).join(" ")} />)}
           {route.segments.map((segment) => <path key={segment.id} className="hazard-route-line" d={route.points.slice(segment.fromPointIndex, segment.toPointIndex + 1).map((point, index) => `${index === 0 ? "M" : "L"} ${x(point.longitude)} ${y(point.latitude)}`).join(" ")} />)}
@@ -210,6 +212,7 @@ export function RoutePlanner() {
   const [restoredPlan, setRestoredPlan] = useState(false);
   const requestControllersRef = useRef<Partial<Record<RouteRequestKind, AbortController>>>({});
   const routeRevisionRef = useRef(0);
+  const activeRouteIdRef = useRef<string | null>(null);
   const satelliteSceneIdRef = useRef<string | null>(null);
   const publishedAt = useMemo(() => stage === "published" ? new Date().toISOString() : null, [stage]);
 
@@ -244,6 +247,32 @@ export function RoutePlanner() {
 
   useEffect(() => () => {
     for (const controller of Object.values(requestControllersRef.current)) controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceRouteDetail>).detail;
+      if (!detail || (detail.route !== null && !isRouteAnalysis(detail.route))) return;
+      if (detail.route?.id === activeRouteIdRef.current) return;
+      activeRouteIdRef.current = detail.route?.id ?? null;
+      routeRevisionRef.current += 1;
+      requestControllersRef.current.route?.abort();
+      delete requestControllersRef.current.route;
+      setBusy(false);
+      cancelEvidenceRequests();
+      satelliteSceneIdRef.current = null;
+      setSatelliteScene(null);
+      setRoute(detail.route);
+      setTerrain(null);
+      setHazard(null);
+      setRouteWeather(null);
+      setBriefing(null);
+      setSelectedWeatherSegmentId("");
+      setStage("draft");
+      setError(null);
+    };
+    window.addEventListener(WORKSPACE_ROUTE_EVENT, listener);
+    return () => window.removeEventListener(WORKSPACE_ROUTE_EVENT, listener);
   }, []);
 
   useEffect(() => {
@@ -293,12 +322,16 @@ export function RoutePlanner() {
   }, []);
 
   useEffect(() => {
-    if (!storageReady || !route) return;
-    try { window.localStorage.setItem(SAVED_PLAN_KEY, JSON.stringify({ route, terrain, hazard, routeWeather, briefing, savedAt: new Date().toISOString() })); } catch { /* Storage quotas do not block the active plan. */ }
+    if (!storageReady) return;
+    try {
+      if (route) window.localStorage.setItem(SAVED_PLAN_KEY, JSON.stringify({ route, terrain, hazard, routeWeather, briefing, savedAt: new Date().toISOString() }));
+      else window.localStorage.removeItem(SAVED_PLAN_KEY);
+    } catch { /* Storage quotas do not block the active plan. */ }
   }, [briefing, hazard, route, routeWeather, storageReady, terrain]);
 
   useEffect(() => {
     if (!route) return;
+    activeRouteIdRef.current = route.id;
     publishWorkspaceRoute(route);
   }, [route]);
 
@@ -322,6 +355,7 @@ export function RoutePlanner() {
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Route analysis failed.");
       if (!isRouteAnalysis(payload)) throw new Error("The route service returned an unexpected response.");
       if (!isCurrentRequest("route", controller)) return;
+      activeRouteIdRef.current = payload.id;
       satelliteSceneIdRef.current = null; setSatelliteScene(null);
       setRoute(payload); setTerrain(null); setHazard(null); setRouteWeather(null); setBriefing(null); setSelectedWeatherSegmentId(""); setStage("draft");
     } catch (requestError) {
@@ -412,25 +446,25 @@ export function RoutePlanner() {
 
   return (
     <section className="route-section shell" aria-labelledby="route-title">
-      <div className="route-section__heading"><div><p className="eyebrow">Route & elevation</p><h2 id="route-title">Upload the line.<br /><em>Inspect every climb.</em></h2></div><div><StatusBadge tone={route ? stage === "published" ? "success" : "information" : "unknown"}>{route ? stage : "Waiting for GPX"}</StatusBadge><p>Turn a field GPX file into a measured route, elevation profile, segment breakdown, waypoint inventory, and portable plan package.</p></div></div>
+      <div className="route-section__heading"><div><p className="eyebrow">Route & elevation</p><h2 id="route-title">Draw the line.<br /><em>Inspect every climb.</em></h2></div><div><StatusBadge tone={route ? stage === "published" ? "success" : "information" : "unknown"}>{route ? stage : "Waiting for route"}</StatusBadge><p>Place two or more points on the globe, then analyze that line for elevation, weather, and terrain hazards. A field GPX file is an optional alternative.</p></div></div>
       <div className="route-console">
         {restoredPlan ? <div className="route-saved-state" role="status"><CheckCircle2 aria-hidden="true" /><p><strong>Saved browser plan restored.</strong> Its attached evidence keeps the original source times; refresh each live layer when connected.</p></div> : null}
-        <form className="route-upload" onSubmit={(event) => { event.preventDefault(); void analyze(); }}>
+        <details className="route-upload-option"><summary>Have a GPX file? Import it instead</summary><form className="route-upload" onSubmit={(event) => { event.preventDefault(); void analyze(); }}>
           <div><label htmlFor="route-name">Route name</label><input id="route-name" name="routeName" autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} maxLength={180} placeholder="Kinshofer route" /></div>
           <div><label htmlFor="route-file">GPX file</label><input id="route-file" name="routeFile" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></div>
           <button className="button button--primary" type="submit" disabled={busy || !file}><Upload aria-hidden="true" />{busy ? "Working…" : "Analyze route"}</button>
-        </form>
+        </form></details>
         {error ? <div className="route-alert" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>Route action unavailable</strong><p>{error}</p></div></div> : null}
         {route ? <>
           <div className="route-summary" aria-label="Route summary"><div><span>Distance</span><strong>{routeValue(route.summary.distanceKm, "km", 2)}</strong></div><div><span>Elevation gain</span><strong>{routeValue(route.summary.elevationGainM, "m")}</strong></div><div><span>High point</span><strong>{routeValue(route.summary.maximumElevationM, "m")}</strong></div><div><span>Estimated movement</span><strong>{routeValue(route.summary.estimatedHours, "h", 1)}</strong></div></div>
-          <div className="route-workspace"><div className="route-elevation"><div className="weather-panel-title"><MountainSnow aria-hidden="true" /><div><span className="data-label">GPX elevation</span><h3>{route.name}</h3></div></div><ElevationProfile route={route} /><p className="route-method"><AlertTriangle aria-hidden="true" />{route.terrainAssessment.notice}</p></div><div className="route-waypoints"><div className="weather-panel-title"><RouteIcon aria-hidden="true" /><div><span className="data-label">Field markers</span><h3>{route.waypoints.length} waypoints</h3></div></div>{route.waypoints.length ? <ul>{route.waypoints.map((waypoint, index) => <li key={`${waypoint.name}-${index}`}><span>{waypoint.type}</span><strong>{waypoint.name}</strong><small>{routeValue(waypoint.elevationM, "m")}</small></li>)}</ul> : <p>No waypoints were included in this GPX file.</p>}</div></div>
+          <div className="route-workspace"><div className="route-elevation"><div className="weather-panel-title"><MountainSnow aria-hidden="true" /><div><span className="data-label">{route.source.format === "Map waypoints" ? "DEM-sampled elevation" : "GPX elevation"}</span><h3>{route.name}</h3></div></div><ElevationProfile route={route} /><p className="route-method"><AlertTriangle aria-hidden="true" />{route.terrainAssessment.notice}</p></div><div className="route-waypoints"><div className="weather-panel-title"><RouteIcon aria-hidden="true" /><div><span className="data-label">{route.source.format === "Map waypoints" ? "Drawn map points" : "Field markers"}</span><h3>{route.waypoints.length} waypoints</h3></div></div>{route.waypoints.length ? <ul>{route.waypoints.map((waypoint, index) => <li key={`${waypoint.name}-${index}`}><span>{waypoint.type}</span><strong>{waypoint.name}</strong><small>{routeValue(waypoint.elevationM, "m")}</small></li>)}</ul> : <p>No waypoints were included in this GPX file.</p>}</div></div>
           <div className="route-table-scroll"><table><caption>Calculated route segments</caption><thead><tr><th>Segment</th><th>Distance</th><th>Gain / loss</th><th>Est. time</th><th>Max route gradient</th><th>Weather · next 24 h</th><th>Terrain intersection</th></tr></thead><tbody>{route.segments.map((segment) => { const intersection = terrain?.intersections.find((item) => item.segmentId === segment.id); const evidence = routeWeather?.segments.find((item) => item.segmentId === segment.id); const tone = terrainTone(intersection?.slopeClass); return <tr key={segment.id} data-selected={segment.id === selectedWeatherSegmentId || undefined}><th scope="row">{evidence ? <button className="route-segment-select" type="button" aria-pressed={segment.id === selectedWeatherSegmentId} onClick={() => setSelectedWeatherSegmentId(segment.id)}>{segment.name}</button> : segment.name}</th><td>{routeValue(segment.distanceKm, "km", 2)}</td><td>+{segment.elevationGainM.toLocaleString()} / −{segment.elevationLossM.toLocaleString()} m</td><td>{routeValue(segment.estimatedHours, "h", 1)}</td><td><span className="gradient-marker" data-gradient={segment.gradientClass} aria-hidden="true" />{routeValue(segment.maximumRouteGradientDegrees, "°", 1)} · {segment.gradientClass}</td><td><StatusBadge tone={weatherTone(evidence?.status)}>{evidence ? `${weatherLabel(evidence.status)} · ${routeValue(evidence.peakWindKmh, "km/h")}` : "Weather pending"}</StatusBadge></td><td><StatusBadge tone={tone}>{intersection ? `${intersection.slopeClass} · ${routeValue(intersection.maximumTerrainSlopeDegrees, "°", 1)}` : "DEM pending"}</StatusBadge></td></tr>; })}</tbody></table></div>
           {routeWeather ? <div className="route-weather-analysis"><header><div className="weather-panel-title"><CloudSun aria-hidden="true" /><div><span className="data-label">Live route weather</span><h3>Altitude-aware wind evidence</h3></div></div><div><span>{routeWeather.source.name} · {routeWeather.source.model}</span><span>Retrieved {new Date(routeWeather.retrievedAt).toLocaleString()} · {routeWeather.forecastWindowHours} h window</span></div></header><RouteWeatherPlan route={route} weather={routeWeather} selectedId={selectedWeatherSegmentId} onSelect={setSelectedWeatherSegmentId} /><footer><AlertTriangle aria-hidden="true" /><p>{routeWeather.notice}</p></footer></div> : null}
           {terrain ? <div className="terrain-analysis"><header><div className="weather-panel-title"><Layers3 aria-hidden="true" /><div><span className="data-label">Live terrain evidence</span><h3>Route–slope intersections</h3></div></div><div><span>{terrain.source.name} {terrain.source.dataset}</span><span>{terrain.raster.effectiveResolutionM} m effective sample · {terrain.raster.validPixelPercent}% valid cells</span></div></header><TerrainPlanView route={route} terrain={terrain} /><div className="terrain-bands" aria-label="Slope classifications">{terrain.intersections.map((intersection) => <article key={intersection.segmentId}><div><strong>{intersection.segmentName}</strong><StatusBadge tone={terrainTone(intersection.slopeClass)}>{intersection.slopeClass}</StatusBadge></div><div className="terrain-band" data-slope={intersection.slopeClass}><span style={{ width: `${Math.min(100, (intersection.maximumTerrainSlopeDegrees ?? 0) / 60 * 100)}%` }} /></div><dl><div><dt>Average</dt><dd>{routeValue(intersection.averageTerrainSlopeDegrees, "°", 1)}</dd></div><div><dt>Maximum</dt><dd>{routeValue(intersection.maximumTerrainSlopeDegrees, "°", 1)}</dd></div><div><dt>Samples</dt><dd>{intersection.sampledPointCount}</dd></div></dl><p>{intersection.interpretation}</p></article>)}</div><footer><AlertTriangle aria-hidden="true" /><p>{terrain.notice} Snowpack and weekly SAR change detection are not included in this terrain result.</p></footer></div> : null}
           {hazard ? <div className="hazard-analysis"><header><div className="weather-panel-title"><Layers3 aria-hidden="true" /><div><span className="data-label">Terrain hazard layers</span><h3>Screening zones & route intersections</h3></div></div><div><span>{hazard.source.dataset} · slope, aspect, curvature, D8 flow</span><span>{hazard.zones.features.length} bounded GeoJSON zones · {new Date(hazard.retrievedAt).toLocaleString()}</span></div></header><HazardPlanView key={hazard.retrievedAt} route={route} hazard={hazard} /><footer><AlertTriangle aria-hidden="true" /><p>{hazard.notice}</p></footer></div> : null}
           {briefing ? <DecisionBriefingView briefing={briefing} /> : null}
           <div className="route-publication"><div><span className="data-label">Plan workflow</span><ol aria-label="Plan status"><li data-active={stage === "draft"}>Draft</li><li data-active={stage === "review"}>Review</li><li data-active={stage === "published"}>Published package</li></ol><p>{stage === "published" ? `Review package created${publishedAt ? ` in this session at ${new Date(publishedAt).toLocaleTimeString()}` : ""}. The source analysis evidence is retained separately by Catalyst.` : "Review freezes the analyzed data before an immutable JSON handoff package is created."}</p></div><div className="route-actions"><button className="button button--secondary" type="button" onClick={() => void analyzeWeather()} disabled={weatherBusy}>{weatherBusy ? "Reading forecast…" : routeWeather ? "Refresh weather" : "Analyze weather"}</button><button className="button button--secondary" type="button" onClick={() => void analyzeTerrain()} disabled={terrainBusy}>{terrainBusy ? "Deriving layers…" : hazard ? "Refresh hazards" : "Analyze hazards"}</button><button className="button button--secondary" type="button" onClick={() => void createBriefing()} disabled={briefingBusy || terrainBusy || weatherBusy}>{briefingBusy ? "Synthesizing evidence…" : briefing ? "Refresh briefing" : "Generate briefing"}</button><button className="button button--secondary" type="button" onClick={() => void exportKmz()} disabled={busy}><Download aria-hidden="true" />Export KMZ</button>{stage === "draft" ? <button className="button button--primary" type="button" onClick={() => setStage("review")}><FileCheck2 aria-hidden="true" />Review draft</button> : stage === "review" ? <button className="button button--primary" type="button" onClick={publishPackage}><Download aria-hidden="true" />Publish package</button> : null}</div></div>
-        </> : <div className="route-empty"><RouteIcon aria-hidden="true" /><strong>No route analyzed</strong><p>Upload a GPX 1.x file up to 5 MB. Its original coordinates and elevations remain the source of record.</p></div>}
+        </> : <div className="route-empty"><RouteIcon aria-hidden="true" /><strong>No route analyzed</strong><p>Use the globe above to place waypoints and analyze their connecting line, or import a GPX 1.x file. Map lines are not trail-snapped or field-verified.</p></div>}
       </div>
     </section>
   );
