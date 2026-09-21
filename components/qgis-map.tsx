@@ -1012,24 +1012,26 @@ export function QgisMap({ snapshot, busy }: QgisMapProps) {
           </div>
         ) : null}
       </div>
-      <div className="qgis-map__label" aria-live="polite">
-        <span className="data-label">Map center</span>
-        <strong>{locationLabel}</strong>
-        <span>{center.latitude.toFixed(4)}, {center.longitude.toFixed(4)}</span>
-      </div>
-      <div className="qgis-map__scene-actions" aria-label="Scene controls">
-        <button type="button" onClick={() => zoomBy(1)} disabled={!ready} aria-label="Zoom in" title="Zoom in"><ZoomIn aria-hidden="true" /></button>
-        <button type="button" onClick={() => zoomBy(-1)} disabled={!ready} aria-label="Zoom out" title="Zoom out"><ZoomOut aria-hidden="true" /></button>
-        <button type="button" onClick={showGlobalView} disabled={!ready} aria-label="Show global Earth view" title="Show global Earth view"><Globe2 aria-hidden="true" /></button>
-        <button
-          type="button"
-          onClick={returnToOperationalFocus}
-          disabled={!ready}
-          aria-label={snapshot?.position ? "Return to latest position" : "Return to Karakoram pilot area"}
-          title={snapshot?.position ? "Return to latest position" : "Return to Karakoram pilot area"}
-        >
-          <LocateFixed aria-hidden="true" />
-        </button>
+      <div className="qgis-map__top-right">
+        <div className="qgis-map__label" aria-live="polite">
+          <span className="data-label">Map center</span>
+          <strong>{locationLabel}</strong>
+          <span>{center.latitude.toFixed(4)}, {center.longitude.toFixed(4)}</span>
+        </div>
+        <div className="qgis-map__scene-actions" aria-label="Scene controls">
+          <button type="button" onClick={() => zoomBy(1)} disabled={!ready} aria-label="Zoom in" title="Zoom in"><ZoomIn aria-hidden="true" /></button>
+          <button type="button" onClick={() => zoomBy(-1)} disabled={!ready} aria-label="Zoom out" title="Zoom out"><ZoomOut aria-hidden="true" /></button>
+          <button type="button" onClick={showGlobalView} disabled={!ready} aria-label="Show global Earth view" title="Show global Earth view"><Globe2 aria-hidden="true" /></button>
+          <button
+            type="button"
+            onClick={returnToOperationalFocus}
+            disabled={!ready}
+            aria-label={snapshot?.position ? "Return to latest position" : "Return to Karakoram pilot area"}
+            title={snapshot?.position ? "Return to latest position" : "Return to Karakoram pilot area"}
+          >
+            <LocateFixed aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <div className="qgis-map__legend" aria-label="Map legend">
         {layerVisibility.route && (activeRoute || waypoints.length !== 1) ? <span><i data-kind="planned" /> {activeRoute ? activeRoute.source.format === "Map waypoints" ? "Drawn route" : "GPX route" : waypoints.length ? "Unverified drawn line" : "Demo route · simulated"}</span> : null}

@@ -571,7 +571,6 @@
 
 .qgis-map__label,
 .qgis-map__legend {
-  position: absolute;
   z-index: 4;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
@@ -581,15 +580,27 @@
   font-size: var(--text-compact-size);
 }
 
-.qgis-map__label {
+.qgis-map__top-right {
+  position: absolute;
+  z-index: 4;
   top: 1rem;
   right: 1rem;
   display: flex;
-  width: min(28rem, calc(100% - 6.75rem));
+  width: min(28rem, calc(100% - 2rem));
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.qgis-map__label {
+  display: flex;
+  width: 100%;
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.75rem 0.85rem;
   overflow-wrap: anywhere;
+  pointer-events: auto;
 }
 
 .earth-workspace-panel {
@@ -1123,8 +1134,7 @@
 }
 
 .qgis-map[data-layers-open] .earth-workspace-panel,
-.qgis-map[data-layers-open] .qgis-map__label,
-.qgis-map[data-layers-open] .qgis-map__scene-actions,
+.qgis-map[data-layers-open] .qgis-map__top-right,
 .qgis-map[data-layers-open] .qgis-map__legend {
   visibility: hidden;
   opacity: 0;
@@ -1172,13 +1182,10 @@
 }
 
 .qgis-map__scene-actions {
-  position: absolute;
-  z-index: 4;
-  top: 12rem;
-  right: 1rem;
   display: grid;
   grid-template-columns: 2.75rem;
   gap: 0.5rem;
+  pointer-events: auto;
 }
 
 .qgis-map__scene-actions button {
@@ -1211,6 +1218,7 @@
 }
 
 .qgis-map__legend {
+  position: absolute;
   right: auto;
   bottom: 1rem;
   left: 1rem;
@@ -1677,17 +1685,12 @@
     width: min(18rem, calc(100% - 5.5rem));
   }
 
-  .qgis-map[data-tools-open]:not([data-layers-open]) .qgis-map__label,
-  .qgis-map[data-tools-open]:not([data-layers-open]) .qgis-map__scene-actions,
+  .qgis-map[data-tools-open]:not([data-layers-open]) .qgis-map__top-right,
   .qgis-map[data-tools-open]:not([data-layers-open]) .qgis-map__legend,
   .qgis-map[data-tools-open]:not([data-layers-open]) .earth-layers-control {
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
-  }
-
-  .qgis-map__label {
-    width: min(21rem, calc(100% - 5.75rem));
   }
 
   .qgis-map__legend {
@@ -1708,13 +1711,6 @@
 }
 
 @media (max-width: 28rem) {
-  .qgis-map__scene-actions {
-    top: 4rem;
-    right: auto;
-    left: 0.65rem;
-    grid-template-columns: 2.75rem;
-  }
-
   .earth-workspace-panel {
     top: 0.65rem;
     left: 0.65rem;
@@ -1733,10 +1729,6 @@
 
   .earth-basemap-list {
     grid-template-columns: 1fr;
-  }
-
-  .qgis-map__label {
-    top: 0.65rem;
   }
 
   .scenario-switcher {
@@ -3230,6 +3222,17 @@
   pointer-events: none;
 }
 
+.operations-console__workspace .position-inspector {
+  border-top: 1px solid var(--color-border);
+  border-left: 0;
+}
+
+@media (max-width: 50rem) {
+  .qgis-map__top-right {
+    top: 4.5rem;
+  }
+}
+
 @media (max-width: 48rem) {
   .earth-map-toolbar {
     top: 0.65rem;
@@ -3237,43 +3240,24 @@
     max-width: calc(100% - 1.3rem);
   }
 
-  .qgis-map__label {
+  .qgis-map__top-right {
     top: 4rem;
     right: 0.65rem;
     width: min(21rem, calc(100% - 1.3rem));
   }
 
-  .qgis-map__scene-actions {
-    top: 12rem;
-  }
-}
-
-.qgis-map__label {
-  top: 4.5rem;
-}
-
-.operations-console__workspace .position-inspector {
-  border-top: 1px solid var(--color-border);
-  border-left: 0;
-}
-
-@media (max-width: 48rem) {
-  .qgis-map__label {
-    top: 4rem;
-  }
-
-  .qgis-map[data-waypoint-error] .qgis-map__label {
+  .qgis-map[data-waypoint-error] .qgis-map__top-right {
     top: 7rem;
   }
+}
 
-  .qgis-map__scene-actions {
-    top: 12rem;
-    right: 0.65rem;
-    left: auto;
+@media (max-width: 24rem) {
+  .qgis-map__top-right {
+    top: 7.25rem;
   }
 
-  .qgis-map[data-waypoint-error] .qgis-map__scene-actions {
-    top: 14rem;
+  .qgis-map[data-waypoint-error] .qgis-map__top-right {
+    top: 10.25rem;
   }
 }
 
