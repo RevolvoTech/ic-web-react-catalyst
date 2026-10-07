@@ -11,6 +11,7 @@ const navigation = [
   { href: "/", label: "Home" },
   { href: "/platform", label: "Platform" },
   { href: "/gis", label: "GIS & Satellite" },
+  { href: "/operations", label: "Command" },
 ] as const;
 
 function isCurrent(pathname: string, href: string) {

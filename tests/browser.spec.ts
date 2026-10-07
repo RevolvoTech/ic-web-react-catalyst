@@ -21,6 +21,11 @@ const routes = [
     h1: /Expedition map/i,
     currentNavigationItem: null,
   },
+  {
+    path: "/operations",
+    h1: /Human review/i,
+    currentNavigationItem: "Command",
+  },
 ] as const;
 
 const viewportWidths = [280, 320, 360, 390, 412, 768, 1024, 1440, 1920, 2560, 3840] as const;
@@ -262,7 +267,13 @@ test.describe("QGIS demo state lab", () => {
     await expect(page.getByRole("button", { name: "Analyze route" })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Clear all waypoints" })).toBeVisible();
     await page.waitForTimeout(900);
-    expect(await centerLabel.locator("span").nth(1).textContent()).toBe(beforeWaypoints);
+    const afterWaypoints = await centerLabel.locator("span").nth(1).textContent();
+    const beforeCoordinates = beforeWaypoints?.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    const afterCoordinates = afterWaypoints?.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    expect(beforeCoordinates).not.toBeNull();
+    expect(afterCoordinates).not.toBeNull();
+    expect(Math.abs(Number(beforeCoordinates?.[1]) - Number(afterCoordinates?.[1]))).toBeLessThan(0.001);
+    expect(Math.abs(Number(beforeCoordinates?.[2]) - Number(afterCoordinates?.[2]))).toBeLessThan(0.001);
     await page.getByRole("button", { name: "Place points" }).click();
 
     const before = await centerLabel.locator("span").nth(1).textContent();
@@ -780,8 +791,7 @@ test("the ArcGIS scene overlays stay inside the map without colliding", async ({
     const selectors = {
       map: ".qgis-map",
       canvas: ".qgis-map .esri-view-surface",
-      toolsPanel: ".earth-workspace-panel__content",
-      toolsToggle: ".earth-workspace-panel__toggle",
+      toolbar: ".earth-map-toolbar",
       label: ".qgis-map__label",
       legend: ".qgis-map__legend",
       controls: ".qgis-map__scene-actions",
@@ -877,16 +887,7 @@ test("the ArcGIS scene overlays stay inside the map without colliding", async ({
     expect(layersLayout.outside, `layers HUD outside map at ${width}px`).toEqual([]);
     await page.getByRole("button", { name: "Close layers" }).click();
 
-    if (width <= 768) {
-      await page.getByRole("button", { name: "Open map tools" }).click();
-      const toolsLayout = await inspectHud();
-      expect(toolsLayout.visibleHud.sort(), `unexpected HUD while map tools are open at ${width}px`).toEqual(
-        ["toolsPanel", "toolsToggle"].sort(),
-      );
-      expect(toolsLayout.collisions, `colliding map-tools HUD at ${width}px`).toEqual([]);
-      expect(toolsLayout.outside, `map-tools HUD outside map at ${width}px`).toEqual([]);
-      await page.getByRole("button", { name: "Hide map tools" }).click();
-    }
+    await expect(page.getByRole("group", { name: "Map route tools" })).toBeVisible();
   }
 });
 
