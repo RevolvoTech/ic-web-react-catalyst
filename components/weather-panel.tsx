@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "@/components/loading-state";
 import { evidenceFetch } from "@/lib/offline-evidence";
 
 import { AlertTriangle, CloudSnow, Gauge, RefreshCw, Wind } from "lucide-react";
@@ -217,7 +218,7 @@ export function WeatherPanel() {
           </div>
           <footer className="operations-console__footer"><span>Model: {snapshot.source.model}</span><span>Model run: Not supplied</span><span>License: {snapshot.source.license}</span><span>Decision support · Human review required</span></footer>
         </div>
-      ) : loading ? <div className="weather-loading" role="status"><span className="page-loading__signal" aria-hidden="true" /> Loading live forecast…</div> : null}
+      ) : loading ? <LoadingState label="Loading live forecast…" /> : null}
     </section>
   );
 }

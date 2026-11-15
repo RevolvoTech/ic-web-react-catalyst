@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "@/components/loading-state";
 
 import { AlertTriangle, BrainCircuit, CheckCircle2, CircleHelp, CloudSun, Download, FileCheck2, Layers3, ListChecks, MountainSnow, Route as RouteIcon, Upload, Wind } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +19,14 @@ import { isTerrainAnalysis, type TerrainAnalysis, type TerrainSlopeClass } from 
 
 type PlanStage = "draft" | "review" | "published";
 type BriefingScene = { sceneId: string; capturedAt: string; cloudCoverPercent: number | null; groundSampleDistanceM: number };
+
+function isBriefingScene(value: unknown): value is BriefingScene {
+  if (typeof value !== "object" || value === null) return false;
+  const scene = value as Partial<BriefingScene>;
+  return typeof scene.sceneId === "string" && typeof scene.capturedAt === "string"
+    && (scene.cloudCoverPercent === null || typeof scene.cloudCoverPercent === "number")
+    && typeof scene.groundSampleDistanceM === "number";
+}
 type RouteRequestKind = "route" | "terrain" | "weather" | "briefing";
 const SAVED_PLAN_KEY = "catalyst:saved-route-plan:v1";
 
@@ -277,10 +286,8 @@ export function RoutePlanner() {
 
   useEffect(() => {
     function readScene(value: unknown) {
-      if (typeof value !== "object" || value === null) return;
-      const scene = value as Partial<BriefingScene>;
-      if (typeof scene.sceneId === "string" && typeof scene.capturedAt === "string" && (scene.cloudCoverPercent === null || typeof scene.cloudCoverPercent === "number") && typeof scene.groundSampleDistanceM === "number") {
-        const nextScene = scene as BriefingScene;
+      if (isBriefingScene(value)) {
+        const nextScene = value;
         if (satelliteSceneIdRef.current !== nextScene.sceneId) {
           requestControllersRef.current.briefing?.abort();
           delete requestControllersRef.current.briefing;
@@ -305,8 +312,11 @@ export function RoutePlanner() {
         if (stored) {
           const saved: unknown = JSON.parse(stored);
           if (typeof saved === "object" && saved !== null && "route" in saved && isRouteAnalysis(saved.route)) {
-            satelliteSceneIdRef.current = null;
-            setSatelliteScene(null);
+            if ("satelliteScene" in saved) {
+              const savedScene = isBriefingScene(saved.satelliteScene) ? saved.satelliteScene : null;
+              satelliteSceneIdRef.current = savedScene?.sceneId ?? null;
+              setSatelliteScene(savedScene);
+            }
             setRoute(saved.route);
             if ("terrain" in saved && isTerrainAnalysis(saved.terrain)) setTerrain(saved.terrain);
             if ("hazard" in saved && isHazardAnalysis(saved.hazard)) setHazard(saved.hazard);
@@ -324,10 +334,10 @@ export function RoutePlanner() {
   useEffect(() => {
     if (!storageReady) return;
     try {
-      if (route) window.localStorage.setItem(SAVED_PLAN_KEY, JSON.stringify({ route, terrain, hazard, routeWeather, briefing, savedAt: new Date().toISOString() }));
+      if (route) window.localStorage.setItem(SAVED_PLAN_KEY, JSON.stringify({ route, terrain, hazard, routeWeather, briefing, satelliteScene, savedAt: new Date().toISOString() }));
       else window.localStorage.removeItem(SAVED_PLAN_KEY);
     } catch { /* Storage quotas do not block the active plan. */ }
-  }, [briefing, hazard, route, routeWeather, storageReady, terrain]);
+  }, [briefing, hazard, route, routeWeather, satelliteScene, storageReady, terrain]);
 
   useEffect(() => {
     if (!route) return;
@@ -464,7 +474,7 @@ export function RoutePlanner() {
           {hazard ? <div className="hazard-analysis"><header><div className="weather-panel-title"><Layers3 aria-hidden="true" /><div><span className="data-label">Terrain hazard layers</span><h3>Screening zones & route intersections</h3></div></div><div><span>{hazard.source.dataset} · slope, aspect, curvature, D8 flow</span><span>{hazard.zones.features.length} bounded GeoJSON zones · {new Date(hazard.retrievedAt).toLocaleString()}</span></div></header><HazardPlanView key={hazard.retrievedAt} route={route} hazard={hazard} /><footer><AlertTriangle aria-hidden="true" /><p>{hazard.notice}</p></footer></div> : null}
           {briefing ? <DecisionBriefingView briefing={briefing} /> : null}
           <div className="route-publication"><div><span className="data-label">Plan workflow</span><ol aria-label="Plan status"><li data-active={stage === "draft"}>Draft</li><li data-active={stage === "review"}>Review</li><li data-active={stage === "published"}>Published package</li></ol><p>{stage === "published" ? `Review package created${publishedAt ? ` in this session at ${new Date(publishedAt).toLocaleTimeString()}` : ""}. The source analysis evidence is retained separately by Catalyst.` : "Review freezes the analyzed data before an immutable JSON handoff package is created."}</p></div><div className="route-actions"><button className="button button--secondary" type="button" onClick={() => void analyzeWeather()} disabled={weatherBusy}>{weatherBusy ? "Reading forecast…" : routeWeather ? "Refresh weather" : "Analyze weather"}</button><button className="button button--secondary" type="button" onClick={() => void analyzeTerrain()} disabled={terrainBusy}>{terrainBusy ? "Deriving layers…" : hazard ? "Refresh hazards" : "Analyze hazards"}</button><button className="button button--secondary" type="button" onClick={() => void createBriefing()} disabled={briefingBusy || terrainBusy || weatherBusy}>{briefingBusy ? "Synthesizing evidence…" : briefing ? "Refresh briefing" : "Generate briefing"}</button><button className="button button--secondary" type="button" onClick={() => void exportKmz()} disabled={busy}><Download aria-hidden="true" />Export KMZ</button>{stage === "draft" ? <button className="button button--primary" type="button" onClick={() => setStage("review")}><FileCheck2 aria-hidden="true" />Review draft</button> : stage === "review" ? <button className="button button--primary" type="button" onClick={publishPackage}><Download aria-hidden="true" />Publish package</button> : null}</div></div>
-        </> : <div className="route-empty"><RouteIcon aria-hidden="true" /><strong>No route analyzed</strong><p>Use the globe above to place waypoints and analyze their connecting line, or import a GPX 1.x file. Map lines are not trail-snapped or field-verified.</p></div>}
+        </> : busy ? <LoadingState label="Analyzing route…" /> : <div className="route-empty"><RouteIcon aria-hidden="true" /><strong>No route analyzed</strong><p>Use the globe above to place waypoints and analyze their connecting line, or import a GPX 1.x file. Map lines are not trail-snapped or field-verified.</p></div>}
       </div>
     </section>
   );

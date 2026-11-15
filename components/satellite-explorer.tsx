@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
+import { LoadingState } from "@/components/loading-state";
 import {
   formatBbox,
   isWorkspaceAoi,
@@ -53,7 +54,7 @@ function errorMessage(value: unknown) {
   return null;
 }
 
-function ScenePreview({ scene, renderUrl }: { scene: SatelliteScene; renderUrl: string | null }) {
+function ScenePreview({ scene, renderUrl, loading }: { scene: SatelliteScene; renderUrl: string | null; loading: boolean }) {
   const previewUrl = renderUrl ?? scene.thumbnailUrl;
   return (
     <div className="satellite-preview">
@@ -64,7 +65,7 @@ function ScenePreview({ scene, renderUrl }: { scene: SatelliteScene; renderUrl: 
           aria-label={`Sentinel-2 preview captured ${formatSceneDate(scene.capturedAt)}`}
           style={{ backgroundImage: `url(${JSON.stringify(previewUrl)})` }}
         />
-      ) : (
+      ) : loading ? <LoadingState label="Rendering satellite image…" /> : (
         <div className="satellite-preview__empty" role="status">
           <ImageIcon aria-hidden="true" />
           <strong>No preview supplied</strong>
@@ -317,7 +318,7 @@ export function SatelliteExplorer() {
           <div className="satellite-scene-list" role="region" aria-label="Available Sentinel-2 scenes">
             <div className="satellite-scene-list__heading">
               <span className="data-label">Newest qualifying scenes</span>
-              <strong>{catalog?.scenes.length ?? 0}</strong>
+              <strong>{catalog?.scenes.length ?? (loading ? "…" : "—")}</strong>
             </div>
             {catalog?.scenes.map((scene) => (
               <button
@@ -334,13 +335,13 @@ export function SatelliteExplorer() {
             {!loading && catalog?.scenes.length === 0 ? (
               <div className="satellite-scene-list__empty" role="status">No scenes matched this date and cloud filter.</div>
             ) : null}
-            {loading ? <div className="satellite-scene-list__empty" role="status">Searching the live Copernicus catalogue…</div> : null}
+            {loading ? <LoadingState label="Searching the live Copernicus catalogue…" /> : null}
           </div>
 
           <div className="satellite-inspector">
             {selectedScene ? (
               <>
-                <ScenePreview scene={selectedScene} renderUrl={renderUrl} />
+                <ScenePreview scene={selectedScene} renderUrl={renderUrl} loading={renderState === "loading"} />
                 <div className="satellite-inspector__details">
                   <div className="satellite-inspector__title">
                     <div><span className="data-label">Selected acquisition</span><h3>{formatSceneDate(selectedScene.capturedAt)}</h3></div>
@@ -362,7 +363,7 @@ export function SatelliteExplorer() {
                   ) : null}
                 </div>
               </>
-            ) : (
+            ) : loading ? <LoadingState label="Loading satellite scenes…" /> : (
               <div className="satellite-inspector__empty" role="status">
                 <Satellite aria-hidden="true" />
                 <strong>{catalogError ? "Catalogue connection unavailable" : "Waiting for a satellite scene"}</strong>
@@ -375,7 +376,7 @@ export function SatelliteExplorer() {
         <footer className="operations-console__footer satellite-console__footer">
           <span>Source: {catalog?.source.name ?? "Copernicus Data Space Ecosystem"}</span>
           <span>Collection: Sentinel-2 Level-2A</span>
-          <span>{catalog ? `Retrieved ${formatSceneDate(catalog.retrievedAt)}` : "Freshness unavailable"}</span>
+          <span>{catalog ? `Retrieved ${formatSceneDate(catalog.retrievedAt)}` : loading ? "Loading scene metadata…" : "Freshness unavailable"}</span>
         </footer>
       </section>
     </div>

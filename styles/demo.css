@@ -2218,16 +2218,6 @@
   font-size: 0.82rem;
 }
 
-.route-upload input::file-selector-button {
-  margin-right: 0.8rem;
-  padding: 0.35rem 0.65rem;
-  border: 0;
-  border-radius: 2px;
-  background: var(--color-border-strong);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
 .route-alert {
   display: flex;
   align-items: center;

@@ -267,6 +267,7 @@ test("a GPX route becomes a reviewable altitude-aware weather plan without inven
   await page.getByRole("button", { name: "Layers" }).click();
   await expect(page.getByRole("checkbox", { name: /Hazard screening/ })).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(page.locator(".satellite-console__workspace")).toHaveAttribute("aria-busy", "false");
   await route.getByRole("button", { name: "Generate briefing" }).click();
   await expect(route.getByRole("heading", { name: "Kinshofer test route evidence briefing" })).toBeVisible();
   await expect(route.getByText("Rules-based synthesis · AI not used")).toBeVisible();
@@ -274,8 +275,17 @@ test("a GPX route becomes a reviewable altitude-aware weather plan without inven
   await route.getByRole("button", { name: "Review draft" }).click();
   await expect(route.getByText("Review", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
-  await page.reload();
-  await openEvidence(page, "Route & briefing");
-  await expect(route.getByText("Saved browser plan restored.")).toBeVisible();
+  let releaseCatalog!: () => void;
+  const catalogGate = new Promise<void>((resolve) => { releaseCatalog = resolve; });
+  await page.route("**/api/satellite/catalog?**", async (interception) => {
+    await catalogGate;
+    await interception.continue();
+  });
+  try {
+    await page.reload();
+    await openEvidence(page, "Route & briefing");
+    await expect(route.getByText("Saved browser plan restored.")).toBeVisible();
+  } finally { releaseCatalog(); }
+  await expect(page.locator(".satellite-console__workspace")).toHaveAttribute("aria-busy", "false");
   await expect(route.getByRole("heading", { name: "Kinshofer test route evidence briefing" })).toBeVisible();
 });

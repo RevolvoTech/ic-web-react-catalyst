@@ -49,6 +49,19 @@ The backend repository contains the matching activation guide.
 
 ## Verification and limits
 
+The subsequent UI review adds shared themed native controls, contextual loaders
+and separate pending/error/empty states. Command keeps its map and summaries
+visible during refresh, and setup forms expand on demand. See
+[Command quick guide](COMMAND_QUICK_GUIDE.md) for the workflow and v5/v6 changes.
+The 77 unit checks, lint, types and production build pass. All 42 standard browser
+checks passed across the full run and targeted reruns after fixing a saved
+briefing's scene-reference race; the three affected asynchronous evidence checks
+also passed three consecutive repetitions. A mock-auth browser harness verified
+delayed access/field/alert/audit responses, failed access plus retry, confirmed
+empty membership, retained data during refresh, keyboard disclosures/selects,
+reduced motion and widths 320/390/768/1440 px. Its leader and viewer axe scans
+found no WCAG A/AA violations. These are simulated backend acceptance cases.
+
 Frontend lint, strict types, unit tests and production build are checked. The
 unit suite contains 77 passing checks. All 45 existing browser checks passed
 across the initial run and targeted reruns: the fallback-label regression was
@@ -74,8 +87,13 @@ remain required before field readiness can be claimed.
 
 ## Production activation
 
-1. Apply backend migration `20261115090000_field_operations.sql` (schema revision
-   6) before deploying the backend. Keep the earlier approval/audit migrations.
+Migration 6 was applied after a production backup on 15 November 2026. Backend
+deployment `24ab5ea` is healthy: `/readyz` reports the database ready and migrations
+current. Deployments now run the migration command before switching traffic.
+
+1. Use `npm run db:migrate` for pending backend migrations. Migration
+   `20261115090000_field_operations.sql` (schema revision 6) and the earlier
+   approval/audit migrations are already recorded in production.
 2. Configure the backend database/Auth and the provider JWT public key or trusted
    gateway signature secret. Verify an actual signed webhook sample and the
    firmware's `catalyst.gps.fix.v1` payload before enabling a physical device.
@@ -99,7 +117,7 @@ be verified from these repositories.
 
 Garmin inReach application submission, Apple/Google company accounts, RockBLOCK
 purchase/SIM activation, actual firmware samples, provider dashboard settings,
-production migration, field tests and human acceptance are not completed by a
+field tests and human acceptance are not completed by a
 Git push. No corporate applications, purchases or charges were submitted.
 
 Phase 2 remains roadmap work: InfluxDB sensor adapters and S1–S4 hardware, drone

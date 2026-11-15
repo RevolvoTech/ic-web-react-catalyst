@@ -23,7 +23,7 @@ const routes = [
   },
   {
     path: "/operations",
-    h1: /Human review/i,
+    h1: /Expedition command/i,
     currentNavigationItem: "Command",
   },
 ] as const;
@@ -385,8 +385,21 @@ test.describe("QGIS demo state lab", () => {
   });
 
   test("announces a loading state while a scenario request is pending", async ({ page }) => {
-    await waitForCurrentFixture(page);
-    await openEvidence(page, "GPS simulation");
+    let releaseInitial!: () => void;
+    const initialGate = new Promise<void>((resolve) => { releaseInitial = resolve; });
+    await page.route("**/api/qgis/snapshot?scenario=current", async (route) => {
+      await initialGate;
+      await route.continue();
+    });
+    try {
+      await page.goto("/demo");
+      await openEvidence(page, "GPS simulation");
+      await expect(page.getByText("Loading GPS position…", { exact: true })).toBeVisible();
+      await expect(page.getByText("Loading recent track…", { exact: true })).toBeVisible();
+      await expect(page.getByText("No position received", { exact: true })).toHaveCount(0);
+      await expect(page.getByText("No recent track points", { exact: true })).toHaveCount(0);
+    } finally { releaseInitial(); }
+    await expect(consoleWorkspace(page)).toHaveAttribute("aria-busy", "false");
 
     let releaseRequest!: () => void;
     const requestGate = new Promise<void>((resolve) => {

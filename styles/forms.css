@@ -1,0 +1,75 @@
+/* Native controls share the same tokens as the rest of Alpine Signal. */
+:where(input, select, textarea) {
+  min-width: 0;
+  color-scheme: dark;
+  accent-color: var(--color-action);
+  font: inherit;
+}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  padding: .65rem .75rem;
+}
+input::placeholder, textarea::placeholder { color: var(--color-text-muted); opacity: 1; }
+input[type="file"] { max-width: 100%; font-size: var(--text-label-size); }
+input[type="file"]::file-selector-button {
+  min-height: 2.75rem;
+  margin-inline-end: .75rem;
+  padding: .6rem .85rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-active);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color var(--motion-fast), background-color var(--motion-fast);
+}
+input[type="file"]:hover:not(:disabled)::file-selector-button {
+  border-color: var(--color-focus);
+  background: var(--color-surface-raised);
+}
+input[type="file"]:disabled::file-selector-button { cursor: not-allowed; color: var(--color-text-muted); }
+select:not([multiple]):not([size]) {
+  appearance: none;
+  padding-inline-end: 2.75rem;
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-text-secondary) 50%), linear-gradient(135deg, var(--color-text-secondary) 50%, transparent 50%);
+  background-position: right 1.125rem center, right .75rem center;
+  background-size: .375rem .375rem;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+select option, select optgroup { background-color: var(--color-surface-raised); color: var(--color-text); }
+select:disabled { cursor: not-allowed; color: var(--color-text-muted); }
+:where(input, select, textarea):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
+/* Supporting browsers also theme the open picker; other browsers retain their
+   accessible native picker with the dark colour scheme above. */
+@supports (appearance: base-select) {
+  select:not([multiple]):not([size]), select:not([multiple]):not([size])::picker(select) { appearance: base-select; }
+  select:not([multiple]):not([size]) { background-image: none; }
+  select::picker-icon { color: var(--color-text-secondary); }
+  select::picker(select) {
+    max-block-size: min(24rem, 70vh);
+    margin-block: .3rem;
+    padding: .25rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font: inherit;
+    box-shadow: 0 .5rem 1.5rem #0006;
+  }
+  select option { min-block-size: 2.75rem; padding: .65rem .75rem; gap: .6rem; border-radius: var(--radius-control); }
+  select option:checked, select option:hover { background: var(--color-surface-active); }
+  select option:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; background: var(--color-surface-active); }
+  select option::checkmark { color: var(--color-action); }
+}
+.loading-state { display: flex; align-items: center; gap: .65rem; padding: 1.25rem; color: var(--color-text-secondary); font-size: var(--text-label-size); }
+.loading-state--inline { display: inline-flex; padding: 0; }
+.loading-state__spinner { width: 1.1rem; height: 1.1rem; flex: none; border: 2px solid var(--color-border-strong); border-top-color: var(--color-information); border-radius: 50%; animation: loading-spin .8s linear infinite; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-state__spinner { animation: none; } input[type="file"]::file-selector-button { transition: none; } }
+@media (forced-colors: active) { select:not([multiple]):not([size]) { appearance: auto; background-image: none; } }

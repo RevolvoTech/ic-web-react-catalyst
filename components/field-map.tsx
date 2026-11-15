@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import type { FieldSnapshot } from "@/lib/field";
 import { positionState } from "@/lib/field";
 import { readField, writeField, removeField } from "@/lib/field-store";
+import { LoadingState } from "@/components/loading-state";
 import type { SourceSpecification, LayerSpecification, AddProtocolAction } from "maplibre-gl";
 
 export function FieldMap({ snapshot, offline }: { snapshot: FieldSnapshot | null; offline: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("No offline basemap loaded. Route and position overlays remain available.");
+  const [status, setStatus] = useState("Preparing map…");
   const [downloading, setDownloading] = useState(false);
+  const [mapLoading, setMapLoading] = useState(true);
   const camera = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null);
   useEffect(() => () => { void import("maplibre-gl").then((module) => module.clearPrewarmedResources()); }, []);
   useEffect(() => { let active = true; void readField<File>("public:maps", "pmtiles").then((value) => {
@@ -25,6 +27,7 @@ export function FieldMap({ snapshot, offline }: { snapshot: FieldSnapshot | null
     void (async () => {
       const [maplibre, pmtiles] = await Promise.all([import("maplibre-gl"), import("pmtiles")]);
       if (!active || !container.current) return;
+      setMapLoading(true);
       maplibre.setWorkerUrl(`/maplibre/${maplibre.getVersion()}/maplibre-gl-worker.mjs`);
       maplibre.prewarm();
       const protocolName = `localtiles${crypto.randomUUID().replaceAll("-", "")}`;
@@ -122,19 +125,27 @@ export function FieldMap({ snapshot, offline }: { snapshot: FieldSnapshot | null
         }
       }
       const ageTimer = window.setInterval(() => ageUpdates.forEach((update) => update()), 30_000);
-      map.on("error", () => { if (active) setError("Some map data could not be rendered. Use the position list and published plan below."); });
-      map.on("load", () => { if (active) setStatus(file ? `Offline vector basemap · ${file.name} · ${(file.size / 1000000).toFixed(1)} MB stored on this device` : "Overlays only · load a licensed Protomaps vector archive for an offline basemap."); });
+      map.on("error", () => { if (active) { setMapLoading(false); setStatus("Map rendering incomplete."); setError("Some map data could not be rendered. Use the position list and published plan."); } });
+      map.on("load", () => { if (active) { setMapLoading(false); setStatus(file ? `Offline basemap · ${file.name} · ${(file.size / 1000000).toFixed(1)} MB saved` : "Route and position overlays · download a basemap for terrain context."); } });
       dispose = () => {
         window.clearInterval(ageTimer);
         const center = map.getCenter(); camera.current = { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() };
         map.remove(); maplibre.removeProtocol(protocolName);
       };
-    })().catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "Map unavailable."); });
+    })().catch((reason: unknown) => { if (active) { setMapLoading(false); setStatus("Map unavailable. Use the published plan and position list."); setError(reason instanceof Error ? reason.message : "Map unavailable."); } });
     return () => { active = false; dispose?.(); };
   }, [file, snapshot, offline]);
 
   return <section aria-labelledby="field-map-heading" className="field-map-panel">
     <h3 id="field-map-heading">Command map</h3>
+    <div className="field-map-shell">
+      <div ref={container} className="field-map" role="region" aria-busy={mapLoading} aria-label="Expedition route, hazards and latest team positions. Equivalent details follow the map." />
+      {mapLoading ? <div className="field-map-loading"><LoadingState label="Loading map…" /></div> : null}
+    </div>
+    <p role="status" className="operations__footnote">{status}</p>
+    {error ? <p role="alert" className="operations__error">{error}</p> : null}
+    <p className="operations__footnote">Orange: planned route · Blue: actual track · Muted markers: stale or offline · Rings: accuracy · Red: hazards. Arrows do not indicate a measured heading.</p>
+    <details className="operations__disclosure field-map-options"><summary>Offline map options</summary>
     <button type="button" disabled={downloading || offline} onClick={() => {
       setDownloading(true); setError("");
       void (async () => {
@@ -163,9 +174,6 @@ export function FieldMap({ snapshot, offline }: { snapshot: FieldSnapshot | null
     }} /></label>
     <p className="operations__footnote">Prepare a licensed region before departure. The map uses the local file and bundled code; no remote tiles, fonts or sprites are required.</p>
     {file ? <button type="button" onClick={() => { void removeField("public:maps", "pmtiles").then(() => setFile(null)).catch(() => setError("Could not remove map.")); }}>Remove stored basemap</button> : null}
-    {error ? <p role="alert" className="operations__error">{error}</p> : null}
-    <div ref={container} className="field-map" role="region" aria-label="Expedition route, hazards and latest team positions. Equivalent details follow the map." />
-    <p role="status" className="operations__footnote">{status}</p>
-    <p className="operations__footnote">Orange: published route · Blue arrow: current position · Muted arrow and dashed ring: stale/offline · Rings: reported accuracy · Red: planned hazard zones. Direction symbol does not imply a measured heading.</p>
+    </details>
   </section>;
 }

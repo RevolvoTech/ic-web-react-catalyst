@@ -3,6 +3,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { FieldConsole } from "@/components/field-console";
+import { LoadingState } from "@/components/loading-state";
 import { clearFieldOwner, readField, writeField } from "@/lib/field-store";
 
 type Role = "leader" | "geoscientist" | "guide_climber" | "viewer";
@@ -45,7 +46,7 @@ function formatTime(value: string | null | undefined) {
 
 async function api<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api/operations/${path}`, {
-    ...init, cache: "no-store",
+    ...init, cache: "no-store", signal: init.signal ?? AbortSignal.timeout(10_000),
     headers: { authorization: `Bearer ${token}`, ...(init.body ? { "content-type": "application/json" } : {}) },
   });
   const result = await response.json() as ApiEnvelope<T>;
@@ -83,7 +84,13 @@ export function OperationsConsole() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(Boolean(authUrl && authKey));
+  const [expeditionsLoading, setExpeditionsLoading] = useState(Boolean(authUrl && authKey));
+  const [expeditionsError, setExpeditionsError] = useState("");
+  const [accessReload, setAccessReload] = useState(0);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState("Saving changes…");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [expeditions, setExpeditions] = useState<Expedition[]>([]);
@@ -109,6 +116,7 @@ export function OperationsConsole() {
     void supabase.auth.getSession().then(({ data }) => {
       setToken(data.session?.access_token ?? null);
       setOwner(data.session?.user.id ?? "");
+      setExpeditionsLoading(Boolean(data.session));
       setLoading(false);
     }).catch(() => {
       setLoading(false); setError("Your session could not be restored. Reconnect and sign in again.");
@@ -118,6 +126,7 @@ export function OperationsConsole() {
         requestVersion.current += 1;
         setError(""); setMessage(""); setAlerts([]); setEvents([]); setSelectedId("");
         setExpeditions([]); setTab("field");
+        setExpeditionsError(""); setExpeditionsLoading(Boolean(session)); setDataLoading(true);
         if (event === "SIGNED_OUT") setEmail("");
       }
       setToken(session?.access_token ?? null);
@@ -129,9 +138,13 @@ export function OperationsConsole() {
   useEffect(() => {
     if (!token || !owner) return;
     let current = true;
-    void api<{ expeditions: Expedition[] }>(token, "expeditions")
+    void Promise.resolve().then(() => {
+      if (!current) return null;
+      setExpeditionsLoading(true); setExpeditionsError("");
+      return api<{ expeditions: Expedition[] }>(token, "expeditions");
+    })
       .then((data) => {
-        if (!current) return;
+        if (!current || !data) return;
         setExpeditions(data.expeditions);
         setAccessCached(false);
         void writeField(`${owner}:access`, "expeditions", data.expeditions).catch(() => undefined);
@@ -145,10 +158,11 @@ export function OperationsConsole() {
           if (!current) return;
           if (stored?.length) { setExpeditions(stored); setExpeditionId(stored[0].id); setAccessCached(true); return; }
         }
-        setError(reason instanceof Error ? reason.message : "Unable to load expeditions.");
-      });
+        setExpeditionsError(reason instanceof Error ? reason.message : "Unable to load expeditions.");
+      })
+      .finally(() => { if (current) setExpeditionsLoading(false); });
     return () => { current = false; };
-  }, [token, owner]);
+  }, [token, owner, accessReload]);
 
   const expedition = expeditions.find((item) => item.id === expeditionId);
   const canReview = expedition?.role === "leader" || expedition?.role === "geoscientist";
@@ -159,20 +173,28 @@ export function OperationsConsole() {
     if (!token || !expeditionId) return;
     if (expedition?.role === "viewer") return;
     const version = ++requestVersion.current;
+    setDataLoading(true);
+    setDataError("");
+    setError("");
     const base = `expeditions/${expeditionId}`;
-    const alertResult = await api<{ alerts: Alert[] }>(token, `${base}/alerts`);
-    if (version !== requestVersion.current) return;
-    setAlerts(alertResult.alerts);
-    setSelectedId((previous) => alertResult.alerts.some((item) => item.id === previous)
-      ? previous : (alertResult.alerts[0]?.id ?? ""));
-    if (canReview) {
-      const query = new URLSearchParams();
-      if (eventType) query.set("eventType", eventType);
-      if (appliedActor) query.set("actor", appliedActor);
-      const result = await api<{ events: AuditEvent[] }>(token, `${base}/audit?${query}`);
+    try {
+      const alertResult = await api<{ alerts: Alert[] }>(token, `${base}/alerts`);
       if (version !== requestVersion.current) return;
-      setEvents(result.events);
-    } else setEvents([]);
+      setAlerts(alertResult.alerts);
+      setSelectedId((previous) => alertResult.alerts.some((item) => item.id === previous)
+        ? previous : (alertResult.alerts[0]?.id ?? ""));
+      if (canReview) {
+        const query = new URLSearchParams();
+        if (eventType) query.set("eventType", eventType);
+        if (appliedActor) query.set("actor", appliedActor);
+        const result = await api<{ events: AuditEvent[] }>(token, `${base}/audit?${query}`);
+        if (version !== requestVersion.current) return;
+        setEvents(result.events);
+      } else setEvents([]);
+    } catch (reason) {
+      if (version === requestVersion.current) setDataError("Some operational data could not be loaded. Refresh this view to try again.");
+      throw reason;
+    } finally { if (version === requestVersion.current) setDataLoading(false); }
   }, [token, expeditionId, expedition?.role, canReview, eventType, appliedActor]);
 
   useEffect(() => {
@@ -188,14 +210,18 @@ export function OperationsConsole() {
     event.preventDefault();
     if (!supabase) return;
     setBusy(true); setError("");
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    setPassword(""); setBusy(false);
-    if (signInError) setError(signInError.message);
+    setBusyLabel("Signing in…");
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) setError(signInError.message);
+    } catch { setError("Sign-in could not be completed. Check your connection and try again."); }
+    finally { setPassword(""); setBusy(false); }
   }
 
   async function act(action: "approve" | "modify" | "suppress", finalText: string, note: string) {
     if (!token || !selected) return;
     setBusy(true); setError(""); setMessage("");
+    setBusyLabel("Saving alert review…");
     try {
       await api(token, `expeditions/${expeditionId}/alerts/${selected.id}/review`, {
         method: "POST", body: JSON.stringify({ action, finalText, note }),
@@ -216,6 +242,7 @@ export function OperationsConsole() {
       sourceData = { ...parsed, provenance: "manual-entry" };
     } catch { setError("Source values must be a JSON object."); return; }
     setBusy(true); setError(""); setMessage("");
+    setBusyLabel("Creating review draft…");
     try {
       await api(token, `expeditions/${expeditionId}/alerts`, {
         method: "POST", body: JSON.stringify({ triggerRule: newRule, score: Number(newScore), originalDraft: newDraft, sourceData }),
@@ -231,6 +258,7 @@ export function OperationsConsole() {
     event.preventDefault();
     if (!token) return;
     setBusy(true); setError(""); setMessage("");
+    setBusyLabel("Saving expedition role…");
     try {
       await api(token, `expeditions/${expeditionId}/members/${memberId}/role`, {
         method: "PUT", body: JSON.stringify({ role: memberRole }),
@@ -247,6 +275,7 @@ export function OperationsConsole() {
   async function exportAudit() {
     if (!token) return;
     setBusy(true); setError("");
+    setBusyLabel("Preparing the complete audit export…");
     try {
       const all: AuditEvent[] = [];
       let before = "";
@@ -267,35 +296,41 @@ export function OperationsConsole() {
 
   return <div className="operations shell">
     <div className="operations__heading">
-      <div><p className="operations__eyebrow">Catalyst / Command</p><h1>Human review</h1>
-        <p>Alerts are advisory drafts until a named leader or geoscientist approves them. Catalyst supports decisions; it does not declare a route safe or unsafe.</p></div>
+      <div><p className="operations__eyebrow">Catalyst / Command</p><h1>Expedition command</h1>
+        <p>Track your team, inspect the published plan and record decisions. Alert delivery requires approval by a leader or geoscientist.</p></div>
       {token && supabase ? <button type="button" disabled={busy} className="operations__quiet" onClick={() => {
-        void clearFieldOwner(owner).then(() => supabase.auth.signOut()).catch(() => setError("Offline data could not be cleared. Clear this site’s storage before sharing the device."));
-      }}>Sign out</button> : null}
+        setBusy(true); setBusyLabel("Signing out…");
+        void clearFieldOwner(owner).then(() => supabase.auth.signOut()).then(({ error: signOutError }) => {
+          if (signOutError) setError(signOutError.message);
+        }).catch(() => setError("Sign-out could not be completed. Clear this site’s storage before sharing the device.")).finally(() => setBusy(false));
+      }}>{busy && busyLabel === "Signing out…" ? "Signing out…" : "Sign out"}</button> : null}
     </div>
     {error ? <p className="operations__error" role="alert">{error}</p> : null}
     {message ? <p className="operations__success" role="status">{message}</p> : null}
+    {busy && token ? <LoadingState label={busyLabel} /> : null}
     {accessCached ? <p className="operations__empty" role="status">Offline access uses your last verified expedition membership. Reconnect to confirm current permissions.</p> : null}
     {!supabase ? <div className="operations__empty">Command access is not configured. Contact your Catalyst administrator.</div>
-      : loading ? <div className="operations__empty" role="status">Checking session…</div>
+      : loading ? <LoadingState label="Checking session…" />
       : !token ? <form className="operations__signin" onSubmit={(event) => void signIn(event)}>
         <h2>Sign in to operations</h2>
         <label>Email<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         <button className="operations__primary" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
       </form>
+      : expeditionsLoading && expeditions.length === 0 ? <LoadingState label="Loading your expeditions…" />
+      : expeditionsError ? <div className="operations__empty"><p role="alert">{expeditionsError}</p><button type="button" onClick={() => { setExpeditionsLoading(true); setExpeditionsError(""); setAccessReload((value) => value + 1); }}>Try again</button></div>
       : expeditions.length === 0 ? <div className="operations__empty">This account has no expedition role. A leader must assign one before operations are available.</div>
       : <div className="operations__workspace">
         <div className="operations__toolbar">
-          <label>Expedition<select disabled={busy} value={expeditionId} onChange={(event) => { requestVersion.current += 1; setExpeditionId(event.target.value); setSelectedId(""); setAlerts([]); setEvents([]); setTab("field"); }}>
+          <label>Expedition<select disabled={busy || expeditionsLoading} value={expeditionId} onChange={(event) => { requestVersion.current += 1; setDataLoading(true); setExpeditionId(event.target.value); setSelectedId(""); setAlerts([]); setEvents([]); setTab("field"); }}>
             {expeditions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select></label>
           <span className="operations__role">Role: {expedition?.role.replace("_", " / ")}</span>
-          <button type="button" className="operations__quiet" onClick={() => void refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Refresh failed."))} disabled={busy}>Refresh alerts and history</button>
+          {tab === "alerts" || tab === "history" ? <button type="button" className="operations__quiet" onClick={() => void refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Refresh failed."))} disabled={busy || dataLoading}>{tab === "history" ? dataLoading ? "Refreshing history…" : "Refresh history" : dataLoading ? "Refreshing alerts…" : "Refresh alerts"}</button> : null}
         </div>
         <nav className="operations__tabs" aria-label="Operations sections">
           <button type="button" aria-current={tab === "field" ? "page" : undefined} onClick={() => setTab("field")}>Field operations</button>
-          <button type="button" aria-current={tab === "alerts" ? "page" : undefined} onClick={() => setTab("alerts")}>Alerts</button>
+          {expedition?.role !== "viewer" ? <button type="button" aria-current={tab === "alerts" ? "page" : undefined} onClick={() => setTab("alerts")}>Alerts</button> : null}
           {canReview ? <button type="button" aria-current={tab === "history" ? "page" : undefined} onClick={() => setTab("history")}>Audit history</button> : null}
           {canLead ? <button type="button" aria-current={tab === "members" ? "page" : undefined} onClick={() => setTab("members")}>Roles</button> : null}
         </nav>
@@ -308,7 +343,7 @@ export function OperationsConsole() {
                 <option value="all">All</option>{canReview ? <option value="pending">Pending</option> : null}
                 <option value="approved">Approved</option>{canReview ? <option value="suppressed">Suppressed</option> : null}
               </select></label></div>
-            {visibleAlerts.length ? <ul>{visibleAlerts.map((alert) => <li key={alert.id}>
+            {dataLoading && alerts.length === 0 ? <LoadingState label="Loading alerts…" /> : dataError && alerts.length === 0 ? <p className="operations__empty">{dataError}</p> : visibleAlerts.length ? <ul>{visibleAlerts.map((alert) => <li key={alert.id}>
               <button type="button" className={selectedId === alert.id ? "is-selected" : ""}
                 onClick={() => setSelectedId(alert.id)} aria-pressed={selectedId === alert.id}>
                 <span><strong>{alert.trigger_rule}</strong><Status value={alert.approval_status} /></span>
@@ -317,7 +352,7 @@ export function OperationsConsole() {
           </section>
           <section className="operations__detail" aria-labelledby="alert-detail-heading">
             <h2 id="alert-detail-heading">Alert detail</h2>
-            {!selected ? <p className="operations__empty">Select an alert to inspect its rule and source values.</p> : <>
+            {!selected ? dataLoading ? <LoadingState label="Loading alert details…" /> : <p className="operations__empty">{dataError || "Select an alert to inspect its rule and source values."}</p> : <>
               <Status value={selected.approval_status} />
               <h3>{selected.trigger_rule}</h3>
               <dl><div><dt>Generated</dt><dd>{formatTime(selected.generated_at)}</dd></div>
@@ -333,7 +368,7 @@ export function OperationsConsole() {
             </>}
           </section>
           {canReview ? <section className="operations__create" aria-labelledby="draft-heading">
-            <h2 id="draft-heading">Create a manual review draft</h2>
+            <details className="operations__disclosure"><summary><h2 id="draft-heading">Create a manual review draft</h2></summary>
             <p>For manually supplied evidence only. This does not verify sensor data or deliver an alert.</p>
             <form onSubmit={(event) => void createDraft(event)}>
               <label>Trigger rule<input required maxLength={120} value={newRule} onChange={(event) => setNewRule(event.target.value)} placeholder="Wind threshold exceeded" /></label>
@@ -341,7 +376,7 @@ export function OperationsConsole() {
               <label>Draft message<textarea required rows={3} maxLength={2000} value={newDraft} onChange={(event) => setNewDraft(event.target.value)} /></label>
               <label>Source values (JSON object)<textarea required rows={3} value={newSource} onChange={(event) => setNewSource(event.target.value)} /></label>
               <button type="submit" disabled={busy}>Create pending draft</button>
-            </form>
+            </form></details>
           </section> : null}
         </div> : null}
         {tab === "history" && canReview ? <section className="operations__history" aria-labelledby="history-heading">
@@ -357,7 +392,7 @@ export function OperationsConsole() {
             <label>Actor<select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}><option value="">All actors</option>
               {[...new Map(events.filter((event) => event.actor_id).map((event) => [event.actor_id, event.actor_name ?? "Expedition member"])).entries()].map(([id, name]) => <option key={id} value={id ?? ""}>{name}</option>)}
             </select></label><button type="submit">Apply filter</button></form>
-          {events.length ? <ol>{events.map((event) => <li key={event.id}><details>
+          {dataLoading && events.length === 0 ? <LoadingState label="Loading audit history…" /> : dataError && events.length === 0 ? <p className="operations__empty">{dataError}</p> : events.length ? <ol>{events.map((event) => <li key={event.id}><details>
             <summary><span><strong>{event.action.replaceAll("_", " ")}</strong><small>{event.actor_name ?? "System"}</small></span><time>{formatTime(event.occurred_at)}</time></summary>
             <pre>{JSON.stringify(event.details, null, 2)}</pre>
           </details></li>)}</ol> : <p className="operations__empty">No audit events match these filters.</p>}

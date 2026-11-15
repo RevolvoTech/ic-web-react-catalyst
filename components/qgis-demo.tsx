@@ -16,6 +16,7 @@ import { AnimatePresence, m } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QgisMap } from "@/components/qgis-map";
+import { LoadingState } from "@/components/loading-state";
 import { StatusBadge } from "@/components/status-badge";
 import {
   formatAge,
@@ -167,11 +168,7 @@ export function QgisDemo({ children, showGpsDetails = true }: { children?: React
           </div>
           <div className="operations-console__statuses" aria-live="polite">
             <StatusBadge tone="information">ArcGIS</StatusBadge>
-            {snapshot?.mode === "live" ? (
-              <StatusBadge tone="information">Live</StatusBadge>
-            ) : (
-              <StatusBadge tone="simulated">Simulated</StatusBadge>
-            )}
+            {snapshot ? <StatusBadge tone={snapshot.mode === "live" ? "information" : "simulated"}>{snapshot.mode === "live" ? "Live" : "Simulated"}</StatusBadge> : null}
             {error ? (
               <StatusBadge tone="critical">Error</StatusBadge>
             ) : snapshot ? (
@@ -254,11 +251,11 @@ export function QgisDemo({ children, showGpsDetails = true }: { children?: React
                   </div>
                 </dl>
               </>
-            ) : (
+            ) : busy && !snapshot ? <LoadingState label="Loading GPS position…" /> : (
               <div className="position-empty" role="status">
-                {snapshot?.freshness === "unavailable" ? <WifiOff aria-hidden="true" /> : <Satellite aria-hidden="true" />}
-                <strong>{snapshot?.freshness === "unavailable" ? "Position unavailable" : "No position received"}</strong>
-                <p>{displayedNotice(snapshot)}</p>
+                {!snapshot || snapshot.freshness === "unavailable" ? <WifiOff aria-hidden="true" /> : <Satellite aria-hidden="true" />}
+                <strong>{!snapshot || snapshot.freshness === "unavailable" ? "Position unavailable" : "No position received"}</strong>
+                <p>{error && !snapshot ? "Position data could not be loaded. Retry the request above." : displayedNotice(snapshot)}</p>
               </div>
             )}
 
@@ -266,8 +263,8 @@ export function QgisDemo({ children, showGpsDetails = true }: { children?: React
               <Database aria-hidden="true" />
               <div>
                 <span className="data-label">Source</span>
-                <strong>{snapshot?.mode === "live" ? snapshot.source.name : "Catalyst GPS simulation"}</strong>
-                <span>{snapshot?.mode === "live" ? "Connected source" : "Generated for demonstration"}</span>
+                <strong>{snapshot ? snapshot.mode === "live" ? snapshot.source.name : "Catalyst GPS simulation" : busy ? "Loading source…" : "Source unavailable"}</strong>
+                {snapshot ? <span>{snapshot.mode === "live" ? "Connected source" : "Generated for demonstration"}</span> : null}
               </div>
             </div>
           </aside> : null}
@@ -292,7 +289,7 @@ export function QgisDemo({ children, showGpsDetails = true }: { children?: React
         </div>
 
         {showGpsDetails ? <footer className="operations-console__footer">
-          <span>Position data: {snapshot?.mode === "live" ? "Live" : "Simulated"}</span>
+          <span>Position data: {snapshot ? snapshot.mode === "live" ? "Live" : "Simulated" : busy ? "Loading…" : "Unavailable"}</span>
           <span>Map: ArcGIS SceneView · World Imagery + World Elevation</span>
           <span>Coordinates: WGS84</span>
         </footer> : null}
@@ -346,7 +343,7 @@ export function QgisDemo({ children, showGpsDetails = true }: { children?: React
                 </dl>
               </div>
             ))
-          ) : (
+          ) : busy && !snapshot ? <LoadingState label="Loading recent track…" /> : (
             <div className="track-list__empty" role="status">
               <Clock3 aria-hidden="true" />
               <div>
