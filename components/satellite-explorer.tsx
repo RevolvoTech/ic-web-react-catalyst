@@ -1,4 +1,5 @@
 "use client";
+import { evidenceFetch } from "@/lib/offline-evidence";
 
 import {
   AlertTriangle,
@@ -141,7 +142,7 @@ export function SatelliteExplorer() {
     });
 
     try {
-      const response = await fetch(`/api/satellite/catalog?${parameters}`, {
+      const response = await evidenceFetch(`/api/satellite/catalog?${parameters}`, "satellite", {
         headers: { accept: "application/json" },
         signal: controller.signal,
       });
@@ -149,7 +150,8 @@ export function SatelliteExplorer() {
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Satellite catalogue request failed.");
       if (!isSatelliteCatalog(payload)) throw new Error("The satellite service returned an unexpected response.");
       if (catalogControllerRef.current !== controller) return;
-      setCatalog(payload);
+      setCatalog(response.headers.has("x-catalyst-offline") ? { ...payload, notice: `${payload.notice} Offline catalogue copy; original acquisition and retrieval timestamps retained.` } : payload);
+      if (response.headers.has("x-catalyst-offline")) setCatalogError("Refresh failed. Showing the downloaded catalogue with its original timestamps.");
       const nextSelectedId = selectedIdRef.current
         && payload.scenes.some((scene) => scene.id === selectedIdRef.current)
         ? selectedIdRef.current

@@ -1,4 +1,5 @@
 "use client";
+import { evidenceFetch } from "@/lib/offline-evidence";
 
 import { AlertTriangle, CloudSnow, Gauge, RefreshCw, Wind } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -150,14 +151,16 @@ export function WeatherPanel() {
       name: aoi.name,
     });
     try {
-      const response = await fetch(`/api/weather/snapshot?${query}`, {
+      const response = await evidenceFetch(`/api/weather/snapshot?${query}`, "weather", {
         headers: { accept: "application/json" },
         signal: controller.signal,
       });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(errorMessage(payload) ?? "Weather request failed.");
       if (!isWeatherSnapshot(payload)) throw new Error("The weather service returned an unexpected response.");
-      if (weatherControllerRef.current === controller) setSnapshot(payload);
+      if (weatherControllerRef.current === controller) setSnapshot(response.headers.has("x-catalyst-offline")
+        ? { ...payload, freshness: "offline", notice: `${payload.notice} Offline copy; original forecast timestamps retained.` } : payload);
+      if (weatherControllerRef.current === controller && response.headers.has("x-catalyst-offline")) setError("Refresh failed. Showing the downloaded forecast with its original timestamps.");
     } catch (requestError) {
       if (controller.signal.aborted) return;
       if (weatherControllerRef.current === controller) {

@@ -5,6 +5,7 @@ import "@fontsource-variable/outfit";
 import "./globals.css";
 import "@/styles/marketing.css";
 import "@/styles/demo.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { MotionOrchestrator } from "@/components/motion-orchestrator";
 import { MotionProvider } from "@/components/motion-provider";
 import { SiteFooter } from "@/components/site-footer";

@@ -1,5 +1,9 @@
 # Catalyst Frontend Handoff
 
+> November 2026: see [DEVELOPER_BRIEF_V6_STATUS.md](DEVELOPER_BRIEF_V6_STATUS.md)
+> for the field workspace, GPS boundary, offline map/report queue, full audit
+> export, verification and production activation requirements.
+
 > October 2026 update: `/operations` now contains a signed-in, role-aware alert review and audit screen. It requires the public Supabase Auth URL and publishable key plus the Catalyst backend URL at build/deployment time. This is an approval workflow for manual drafts; it does not make GPS, offline field sync, or the public demo live. See the backend repository's `docs/DEVELOPER_BRIEF_V5_STATUS.md` for activation order and remaining dependencies. Historical delivery sequence notes below predate this slice.
 
 ## Purpose

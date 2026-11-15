@@ -2,6 +2,8 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { FieldConsole } from "@/components/field-console";
+import { clearFieldOwner, readField, writeField } from "@/lib/field-store";
 
 type Role = "leader" | "geoscientist" | "guide_climber" | "viewer";
 type Expedition = { id: string; name: string; role: Role; status: string };
@@ -16,8 +18,10 @@ type Alert = {
 type AuditEvent = {
   id: string; action: string; actor_id: string | null; actor_name?: string | null; resource_id: string | null;
   occurred_at: string; details: Record<string, unknown>;
+  event_sequence: string;
 };
 type ApiEnvelope<T> = T & { error?: { message?: string } };
+class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 
 const authUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const authKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -45,7 +49,7 @@ async function api<T>(token: string, path: string, init: RequestInit = {}): Prom
     headers: { authorization: `Bearer ${token}`, ...(init.body ? { "content-type": "application/json" } : {}) },
   });
   const result = await response.json() as ApiEnvelope<T>;
-  if (!response.ok) throw new Error(result.error?.message ?? `Request failed (${response.status}).`);
+  if (!response.ok) throw new ApiError(response.status, result.error?.message ?? `Request failed (${response.status}).`);
   return result;
 }
 
@@ -74,6 +78,8 @@ function ReviewControls({ alert, busy, onAction }: {
 export function OperationsConsole() {
   const supabase = getAuthClient();
   const [token, setToken] = useState<string | null>(null);
+  const [owner, setOwner] = useState("");
+  const [accessCached, setAccessCached] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(Boolean(authUrl && authKey));
@@ -82,7 +88,7 @@ export function OperationsConsole() {
   const [message, setMessage] = useState("");
   const [expeditions, setExpeditions] = useState<Expedition[]>([]);
   const [expeditionId, setExpeditionId] = useState("");
-  const [tab, setTab] = useState<"alerts" | "history" | "members">("alerts");
+  const [tab, setTab] = useState<"field" | "alerts" | "history" | "members">("field");
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -102,33 +108,47 @@ export function OperationsConsole() {
     if (!supabase) return;
     void supabase.auth.getSession().then(({ data }) => {
       setToken(data.session?.access_token ?? null);
+      setOwner(data.session?.user.id ?? "");
       setLoading(false);
+    }).catch(() => {
+      setLoading(false); setError("Your session could not be restored. Reconnect and sign in again.");
     });
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
         requestVersion.current += 1;
         setError(""); setMessage(""); setAlerts([]); setEvents([]); setSelectedId("");
-        setExpeditions([]); setTab("alerts");
+        setExpeditions([]); setTab("field");
         if (event === "SIGNED_OUT") setEmail("");
       }
       setToken(session?.access_token ?? null);
+      setOwner(session?.user.id ?? "");
     });
     return () => subscription.subscription.unsubscribe();
   }, [supabase]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !owner) return;
     let current = true;
     void api<{ expeditions: Expedition[] }>(token, "expeditions")
       .then((data) => {
         if (!current) return;
         setExpeditions(data.expeditions);
+        setAccessCached(false);
+        void writeField(`${owner}:access`, "expeditions", data.expeditions).catch(() => undefined);
         setExpeditionId((previous) => data.expeditions.some((item) => item.id === previous)
           ? previous : (data.expeditions[0]?.id ?? ""));
       })
-      .catch((reason: unknown) => { if (current) setError(reason instanceof Error ? reason.message : "Unable to load expeditions."); });
+      .catch(async (reason: unknown) => {
+        if (!current) return;
+        if (!(reason instanceof ApiError) || reason.status >= 500) {
+          const stored = await readField<Expedition[]>(`${owner}:access`, "expeditions").catch(() => null);
+          if (!current) return;
+          if (stored?.length) { setExpeditions(stored); setExpeditionId(stored[0].id); setAccessCached(true); return; }
+        }
+        setError(reason instanceof Error ? reason.message : "Unable to load expeditions.");
+      });
     return () => { current = false; };
-  }, [token]);
+  }, [token, owner]);
 
   const expedition = expeditions.find((item) => item.id === expeditionId);
   const canReview = expedition?.role === "leader" || expedition?.role === "geoscientist";
@@ -224,14 +244,38 @@ export function OperationsConsole() {
 
   const visibleAlerts = alerts.filter((item) => filter === "all" || item.approval_status === filter);
 
+  async function exportAudit() {
+    if (!token) return;
+    setBusy(true); setError("");
+    try {
+      const all: AuditEvent[] = [];
+      let before = "";
+      for (;;) {
+        const result = await api<{ events: AuditEvent[] }>(token, `expeditions/${expeditionId}/audit${before ? `?before=${before}` : ""}`);
+        all.push(...result.events);
+        if (result.events.length < 200) break;
+        const cursor = result.events.at(-1)?.event_sequence;
+        if (!cursor || cursor === before) throw new Error("Audit export could not advance. No partial export was downloaded.");
+        before = cursor;
+      }
+      const blob = new Blob([JSON.stringify({ expedition_id: expeditionId, exported_at: new Date().toISOString(), events: all }, null, 2)], { type: "application/json" });
+      const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `catalyst-audit-${expeditionId}.json`; link.click(); URL.revokeObjectURL(link.href);
+      setMessage(`Exported ${all.length} audit events across all event types.`);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Audit export failed."); }
+    finally { setBusy(false); }
+  }
+
   return <div className="operations shell">
     <div className="operations__heading">
       <div><p className="operations__eyebrow">Catalyst / Command</p><h1>Human review</h1>
         <p>Alerts are advisory drafts until a named leader or geoscientist approves them. Catalyst supports decisions; it does not declare a route safe or unsafe.</p></div>
-      {token && supabase ? <button type="button" className="operations__quiet" onClick={() => void supabase.auth.signOut()}>Sign out</button> : null}
+      {token && supabase ? <button type="button" disabled={busy} className="operations__quiet" onClick={() => {
+        void clearFieldOwner(owner).then(() => supabase.auth.signOut()).catch(() => setError("Offline data could not be cleared. Clear this site’s storage before sharing the device."));
+      }}>Sign out</button> : null}
     </div>
     {error ? <p className="operations__error" role="alert">{error}</p> : null}
     {message ? <p className="operations__success" role="status">{message}</p> : null}
+    {accessCached ? <p className="operations__empty" role="status">Offline access uses your last verified expedition membership. Reconnect to confirm current permissions.</p> : null}
     {!supabase ? <div className="operations__empty">Command access is not configured. Contact your Catalyst administrator.</div>
       : loading ? <div className="operations__empty" role="status">Checking session…</div>
       : !token ? <form className="operations__signin" onSubmit={(event) => void signIn(event)}>
@@ -243,17 +287,19 @@ export function OperationsConsole() {
       : expeditions.length === 0 ? <div className="operations__empty">This account has no expedition role. A leader must assign one before operations are available.</div>
       : <div className="operations__workspace">
         <div className="operations__toolbar">
-          <label>Expedition<select value={expeditionId} onChange={(event) => { requestVersion.current += 1; setExpeditionId(event.target.value); setSelectedId(""); setAlerts([]); setEvents([]); setTab("alerts"); }}>
+          <label>Expedition<select disabled={busy} value={expeditionId} onChange={(event) => { requestVersion.current += 1; setExpeditionId(event.target.value); setSelectedId(""); setAlerts([]); setEvents([]); setTab("field"); }}>
             {expeditions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select></label>
           <span className="operations__role">Role: {expedition?.role.replace("_", " / ")}</span>
-          <button type="button" className="operations__quiet" onClick={() => void refresh()} disabled={busy}>Refresh data</button>
+          <button type="button" className="operations__quiet" onClick={() => void refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Refresh failed."))} disabled={busy}>Refresh alerts and history</button>
         </div>
         <nav className="operations__tabs" aria-label="Operations sections">
+          <button type="button" aria-current={tab === "field" ? "page" : undefined} onClick={() => setTab("field")}>Field operations</button>
           <button type="button" aria-current={tab === "alerts" ? "page" : undefined} onClick={() => setTab("alerts")}>Alerts</button>
           {canReview ? <button type="button" aria-current={tab === "history" ? "page" : undefined} onClick={() => setTab("history")}>Audit history</button> : null}
           {canLead ? <button type="button" aria-current={tab === "members" ? "page" : undefined} onClick={() => setTab("members")}>Roles</button> : null}
         </nav>
+        {tab === "field" && owner && expedition ? <FieldConsole key={`${owner}:${expeditionId}`} token={token} owner={owner} expedition={expeditionId} role={expedition.role} /> : null}
         {tab === "alerts" && expedition?.role === "viewer" ? <div className="operations__empty">Viewer access is read-only. Alert review and audit history are restricted to expedition reviewers.</div> : null}
         {tab === "alerts" && expedition?.role !== "viewer" ? <div className="operations__grid">
           <section className="operations__queue" aria-labelledby="alerts-heading">
@@ -276,7 +322,7 @@ export function OperationsConsole() {
               <h3>{selected.trigger_rule}</h3>
               <dl><div><dt>Generated</dt><dd>{formatTime(selected.generated_at)}</dd></div>
                 <div><dt>Score</dt><dd>{selected.score === null ? "Not recorded" : `${selected.score}/100`}</dd></div>
-                {selected.approved_by ? <div><dt>Reviewed by</dt><dd>{selected.approved_by_name ?? selected.approved_by}</dd></div> : null}
+                {selected.approved_by ? <div><dt>Reviewed by</dt><dd>{selected.approved_by_name ?? "Expedition reviewer"}</dd></div> : null}
                 {selected.approved_at ? <div><dt>Reviewed</dt><dd>{formatTime(selected.approved_at)}</dd></div> : null}
                 {selected.delivered_at ? <div><dt>In-app delivery</dt><dd>{formatTime(selected.delivered_at)}</dd></div> : null}</dl>
               {selected.original_draft ? <div className="operations__copy"><h4>Original draft</h4><p>{selected.original_draft}</p></div> : null}
@@ -300,20 +346,22 @@ export function OperationsConsole() {
         </div> : null}
         {tab === "history" && canReview ? <section className="operations__history" aria-labelledby="history-heading">
           <div className="operations__section-head"><h2 id="history-heading">Audit history</h2>
-            <button type="button" onClick={() => {
-              const blob = new Blob([JSON.stringify({ expedition_id: expeditionId, exported_at: new Date().toISOString(), events }, null, 2)], { type: "application/json" });
-              const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `catalyst-audit-${expeditionId}.json`; link.click(); URL.revokeObjectURL(link.href);
-            }}>Export visible JSON</button></div>
+            <button type="button" disabled={busy} onClick={() => void exportAudit()}>Export full audit JSON</button></div>
           <form className="operations__filters" onSubmit={(event) => { event.preventDefault(); setAppliedActor(actorFilter.trim()); }}><label>Event type<select value={eventType} onChange={(event) => setEventType(event.target.value)}>
             <option value="">All events</option><option value="alert_generated">Alert generated</option>
             <option value="alert_reviewed">Alert reviewed</option><option value="alert_delivered">Alert delivered</option>
+            <option value="plan_published">Plan published</option><option value="position_received">Position received</option>
+            <option value="go_nogo_decision">Leader decision</option><option value="hazard_zone_changed">Hazard zone changed</option>
+            <option value="field_report_received">Field report received</option><option value="tracking_device_registered">Tracking device registered</option>
             <option value="role_granted">Role granted</option></select></label>
-            <label>Actor ID<input value={actorFilter} onChange={(event) => setActorFilter(event.target.value)} placeholder="UUID or blank" /></label><button type="submit">Apply filter</button></form>
+            <label>Actor<select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}><option value="">All actors</option>
+              {[...new Map(events.filter((event) => event.actor_id).map((event) => [event.actor_id, event.actor_name ?? "Expedition member"])).entries()].map(([id, name]) => <option key={id} value={id ?? ""}>{name}</option>)}
+            </select></label><button type="submit">Apply filter</button></form>
           {events.length ? <ol>{events.map((event) => <li key={event.id}><details>
-            <summary><span><strong>{event.action.replaceAll("_", " ")}</strong><small>{event.actor_name ? `${event.actor_name} · ${event.actor_id}` : event.actor_id ?? "System"}</small></span><time>{formatTime(event.occurred_at)}</time></summary>
+            <summary><span><strong>{event.action.replaceAll("_", " ")}</strong><small>{event.actor_name ?? "System"}</small></span><time>{formatTime(event.occurred_at)}</time></summary>
             <pre>{JSON.stringify(event.details, null, 2)}</pre>
           </details></li>)}</ol> : <p className="operations__empty">No audit events match these filters.</p>}
-          <p className="operations__footnote">Showing the 200 most recent matching events. Export contains this visible page.</p>
+          <p className="operations__footnote">Showing the 200 most recent matching events. Full export includes every recorded event, regardless of these filters.</p>
         </section> : null}
         {tab === "members" && canLead ? <section className="operations__members" aria-labelledby="members-heading">
           <h2 id="members-heading">Assign expedition role</h2><p>Enter the ID of an existing Catalyst account. Every change is recorded in the audit history.</p>

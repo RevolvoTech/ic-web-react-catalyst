@@ -12,7 +12,10 @@ export default defineConfig([
     ".npm-cache/**",
     "playwright-report/**",
     "test-results/**",
+    "output/**",
     "public/vendor/**",
+    "public/sw.js",
+    "public/maplibre/**",
     "next-env.d.ts",
   ]),
 ]);
